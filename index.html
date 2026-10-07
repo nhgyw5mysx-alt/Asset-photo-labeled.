@@ -311,7 +311,7 @@ $("afterPhoto2").onchange=()=>handleReportPhoto("afterPhoto2","afterStatus2",v=>
 $("meterPhoto2").onchange=()=>handleReportPhoto("meterPhoto2","meterStatus2",v=>meterData2=v);
 
 // Small self-contained PDF writer. No external PDF library is required.
-// V18: PDF images use consistent XObject names and all page content is embedded as byte arrays.
+// V20: PDF images use consistent XObject names and all page content is embedded as byte arrays.
 function pdfEscape(s){
  s=String(s??"—").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
  // Use the PDF/WinAnsi octal escape for the micro sign.
