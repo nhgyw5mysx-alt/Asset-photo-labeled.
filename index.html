@@ -13,7 +13,7 @@
 h1{margin:0;font-size:26px;letter-spacing:.2px}.top p{margin:6px 0 0;color:#cbd7e1;font-size:14px}
 .card{background:#fff;border-radius:18px;padding:18px;margin-top:15px;box-shadow:0 5px 18px #00000012}
 .choose,.create,.download{width:100%;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:800}
-.choose,.create{background:#0b2941;color:#fff}.create{margin-top:15px;background:#145d8a}.create:disabled{background:#aab5be}
+.choose,.create{background:#0b2941;color:#fff}.create{margin-top:15px;background:#145d8a}.create:disabled{background:#aab5be}.test-button{width:100%;border:1px solid #145d8a;border-radius:12px;padding:13px;font-size:15px;font-weight:800;background:#fff;color:#145d8a;margin-top:10px}
 input[type=file]{width:100%;margin-top:10px}.preview{display:none;width:100%;max-height:360px;object-fit:contain;margin-top:14px;border-radius:10px;background:#111}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.full{grid-column:1/-1}.field{margin-top:4px}
 label{display:block;font-size:13px;font-weight:800;color:#445665;margin-bottom:6px}
@@ -33,7 +33,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 </head>
 <body>
 <div class="app">
-<div class="top"><span class="version-badge">VERSION V26</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
+<div class="top"><span class="version-badge">VERSION V28</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
 
 <div class="card" id="assetPhotoCard">
 <div class="selector">
@@ -119,6 +119,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 
 </div>
 <button id="create" class="create" type="button" disabled>CREATE ASSET LABEL</button>
+<button id="testReport" class="test-button" type="button">LOAD TEST PASSIVATION REPORT</button>
 <div class="hint">Asset labels: 1600 × 1400 px • Passivation: professional PDF report • 4 evidence photos maximum</div>
 </div>
 
@@ -530,13 +531,21 @@ async function createPassivationReport(){
  {
    const st=[],ims=[];addHeader(st,ims);
    reportTable(st,[["Systems",system],["Location",location],["Dates",date],["Report Type","Passivation Report"],["Conducted by",by]],682);
-   heading(st,"1. Overview",43,535);para(st,overview,43,513,8.8,105,13,false);
-   // Keep both stage headings comfortably above the footer; never allow a heading to collide with page numbering.
-   let y=435;
+   heading(st,"1. Overview",43,535);
+   para(st,overview,43,513,8.8,105,13,false);
+
+   // Fixed, non-overlapping stage slots. Headings are always above their own data and well clear of the footer.
+   const stageSlots = stages.length===1 ? [420] : [430,275];
    stages.forEach((stage,idx)=>{
      stage.seq=idx+2;
-     y=stageBlock(st,stage,y);
-     if(idx<stages.length-1) y-=24;
+     const sy=stageSlots[idx];
+     heading(st,`${stage.seq}. ${system} — Stage ${stage.n}`,43,sy);
+     let yy=sy-24;
+     yy=labelValue(st,"Run duration:",formatMinutes(stage.m),43,yy,9,82);
+     yy=labelValue(st,"Chemical used:",stage.c,43,yy,9,82);
+     yy=labelValue(st,"Chemical amount:",stage.a,43,yy,9,82);
+     yy=labelValue(st,"Start time:",stage.s,43,yy,9,82);
+     yy=labelValue(st,"Finish time:",stage.f,43,yy,9,82);
    });
    pages.push({stream:st,images:ims});
  }
@@ -557,16 +566,16 @@ async function createPassivationReport(){
    if(stages.length===1){
      const stage=stages[0];
      heading(st,`Stage ${stage.n} Final Conductivity`,43,635);
-     para(st,`After flushing during Stage ${stage.n}, a final conductivity reading of ${stage.cond} µS/cm was recorded.`,43,613,9,100,14,true);
+     para(st,`After flushing during Stage ${stage.n}, a final conductivity reading of ${stage.cond} µS/cm was recorded.`,43,613,9,100,14,false);
      addPhoto(st,ims,`Meter${stage.n}`,stage.meter,155,385,285,180,`Photo 3 – Final conductivity meter reading: ${stage.cond} µS/cm (Stage ${stage.n}).`);
    }else{
      const first=stages[0],second=stages[1];
-     heading(st,`Stage ${first.n} Final Conductivity`,43,635);
-     para(st,`After flushing during Stage ${first.n}, a final conductivity reading of ${first.cond} µS/cm was recorded.`,43,613,9,100,14,true);
-     addPhoto(st,ims,`Meter${first.n}`,first.meter,155,430,285,155,`Photo 3 – Final conductivity meter reading: ${first.cond} µS/cm (Stage ${first.n}).`);
-     heading(st,`Stage ${second.n} Final Conductivity`,43,330);
-     para(st,`After flushing during Stage ${second.n}, a final conductivity reading of ${second.cond} µS/cm was recorded.`,43,308,9,100,14,true);
-     addPhoto(st,ims,`Meter${second.n}`,second.meter,155,125,285,155,`Photo 4 – Final conductivity meter reading: ${second.cond} µS/cm (Stage ${second.n}).`);
+     heading(st,`Stage ${first.n} Final Conductivity`,43,625);
+     para(st,`After flushing during Stage ${first.n}, a final conductivity reading of ${first.cond} µS/cm was recorded.`,43,603,9,100,14,false);
+     addPhoto(st,ims,`Meter${first.n}`,first.meter,155,405,285,155,`Photo 3 – Final conductivity meter reading: ${first.cond} µS/cm (Stage ${first.n}).`);
+     heading(st,`Stage ${second.n} Final Conductivity`,43,320);
+     para(st,`After flushing during Stage ${second.n}, a final conductivity reading of ${second.cond} µS/cm was recorded.`,43,298,9,100,14,false);
+     addPhoto(st,ims,`Meter${second.n}`,second.meter,155,115,285,155,`Photo 4 – Final conductivity meter reading: ${second.cond} µS/cm (Stage ${second.n}).`);
    }
    pages.push({stream:st,images:ims});
  }
@@ -595,6 +604,47 @@ async function saveOrShareReport(){
 }
 $("shareReport").onclick=saveOrShareReport;
 $("reportDownload").onclick=saveOrShareReport;
+
+async function makeTestPhoto(title, subtitle, accent){
+ const c=document.createElement("canvas"); c.width=1200; c.height=800;
+ const x=c.getContext("2d");
+ x.fillStyle="#f2f5f7";x.fillRect(0,0,c.width,c.height);
+ x.fillStyle=accent;x.fillRect(0,0,c.width,105);
+ x.fillStyle="#fff";x.font="800 44px Arial,sans-serif";x.fillText(title,50,68);
+ x.fillStyle="#102131";x.font="700 34px Arial,sans-serif";x.fillText(subtitle,50,220);
+ x.fillStyle="#637381";x.font="24px Arial,sans-serif";x.fillText("CID PASSIVATION TEST EVIDENCE",50,275);
+ x.strokeStyle=accent;x.lineWidth=5;x.strokeRect(45,330,1110,360);
+ x.fillStyle="#fff";x.fillRect(70,355,1060,310);
+ x.fillStyle=accent;x.font="800 52px Arial,sans-serif";x.textAlign="center";x.fillText(title,600,485);
+ x.fillStyle="#102131";x.font="28px Arial,sans-serif";x.fillText(subtitle,600,545);
+ x.textAlign="left";
+ return c.toDataURL("image/jpeg",.9);
+}
+
+async function loadTestPassivationReport(){
+ try{
+  $("labelType").value="passivation";updateLabelType();
+  const vals={
+   system:"Test Process System",pLocation:"Building 1 – Test Area",pDate:new Date().toISOString().slice(0,10),conductedBy:"CID Test User",
+   chemical1:"CiP200",amount1:"200 L",start1:"08:00",finish1:"10:00",conductivity1:"1.21",
+   chemical2:"Citric Acid",amount2:"100 L",start2:"10:30",finish2:"12:00",conductivity2:"0.84",
+   preComments:"Pre-passivation test condition – sample evidence loaded.",postComments:"Post-passivation test condition – sample evidence loaded.",finalComments:"Test report generated from the built-in test data. This is a layout and functionality check only."
+  };
+  Object.entries(vals).forEach(([id,v])=>$(id).value=v);
+  updateDurations();
+  beforeData=await makeTestPhoto("BEFORE PASSIVATION","Pre-passivation condition", "#145d8a");
+  afterData=await makeTestPhoto("AFTER PASSIVATION","Post-passivation condition", "#2b7a4b");
+  meterData=await makeTestPhoto("STAGE 1","Final conductivity: 1.21 µS/cm", "#145d8a");
+  meterData2=await makeTestPhoto("STAGE 2","Final conductivity: 0.84 µS/cm", "#2b7a4b");
+  $("beforeStatus").textContent="✓ Test photo loaded";$("afterStatus").textContent="✓ Test photo loaded";
+  $("meterStatus1").textContent="✓ Test meter photo loaded";$("meterStatus2").textContent="✓ Test meter photo loaded";
+  $("status").textContent="Test passivation report loaded. Review the pre-filled fields, then tap CREATE PASSIVATION REPORT.";
+  $("reportOutput").style.display="none";
+  $("create").disabled=false;
+  document.querySelector('#passivationFields').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(e){console.error(e);$("status").textContent="Could not load the test report.";}
+}
+$("testReport").onclick=loadTestPassivationReport;
 
 $("create").onclick=async()=>{
  if($("labelType").value==="passivation"){
