@@ -84,19 +84,40 @@ const $=id=>document.getElementById(id);
 let img=null, fileUrl=null;
 $("choose").onclick=()=> $("file").click();
 
-$("file").onchange=()=>{
- const f=$("file").files[0]; if(!f)return;
- $("status").textContent="Loading photo…"; $("create").disabled=true;
- fileUrl=URL.createObjectURL(f); img=new Image();
- img.onload=()=>{ $("preview").src=fileUrl; $("preview").style.display="block"; $("create").disabled=false; $("status").textContent="Photo ready."; };
- img.onerror=()=> $("status").textContent="Could not open this photo. Try JPG or PNG.";
- img.src=fileUrl;
+$("file").onchange=async()=>{
+ const f=$("file").files[0];if(!f)return;
+ $("status").textContent="Loading photo…";$("create").disabled=true;
+ try{
+  const reader=new FileReader();
+  const dataUrl=await new Promise((resolve,reject)=>{
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=reject;
+    reader.readAsDataURL(f);
+  });
+  const newImg=new Image();
+  newImg.decoding="async";
+  await new Promise((resolve,reject)=>{
+    newImg.onload=resolve;
+    newImg.onerror=reject;
+    newImg.src=dataUrl;
+  });
+  if(!newImg.naturalWidth||!newImg.naturalHeight)throw new Error("Image has no dimensions");
+  img=newImg;
+  $("preview").src=dataUrl;
+  $("preview").style.display="block";
+  $("create").disabled=false;
+  $("status").textContent="Photo ready.";
+ }catch(e){
+  console.error(e);
+  $("status").textContent="Could not open this photo. Try selecting it again or use JPG/PNG.";
+  $("create").disabled=true;
+ }
 };
 
-function cover(c,i,w,h){
- const s=Math.max(w/i.naturalWidth,h/i.naturalHeight);
- const nw=i.naturalWidth*s,nh=i.naturalHeight*s;
- c.drawImage(i,(w-nw)/2,(h-nh)/2,nw,nh);
+function cover(c,i,x,y,w,h){
+ const scale=Math.max(w/i.naturalWidth,h/i.naturalHeight);
+ const nw=i.naturalWidth*scale,nh=i.naturalHeight*scale;
+ c.drawImage(i,x+(w-nw)/2,y+(h-nh)/2,nw,nh);
 }
 function rr(c,x,y,w,h,r){
  c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);
@@ -131,14 +152,20 @@ $("startTime").oninput=$("finishTime").oninput=()=>{$("duration").textContent="P
 
 $("create").onclick=async()=>{
  if(!img?.naturalWidth)return;
- $("create").disabled=true;$("status").textContent="Creating label…";
+ $("create").disabled=true;$("status").textContent="Creating label with photo…";
  try{
   const c=$("canvas"),x=c.getContext("2d"),W=1600,H=1400,photoH=900,panel=920;
   c.width=W;c.height=H;
   x.fillStyle="#fff";x.fillRect(0,0,W,H);
 
   // Fixed photo window: 1600 x 900, cropped without distortion.
-  x.save();x.beginPath();x.rect(0,0,W,photoH);x.clip();cover(x,img,0,0,W,photoH);x.restore();
+  if(!img || !img.naturalWidth || !img.naturalHeight) throw new Error("No usable photo loaded");
+  x.save();
+  x.beginPath();
+  x.rect(0,0,W,photoH);
+  x.clip();
+  cover(x,img,0,0,W,photoH);
+  x.restore();
   x.fillStyle="#071a2b";x.fillRect(0,900,W,20);
 
   // Branded information panel.
