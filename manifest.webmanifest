@@ -1,1 +1,9 @@
-{"name":"CID Asset Photo Labeler","short_name":"CID Labeler","start_url":"./","display":"standalone","background_color":"#edf1f4","theme_color":"#071a2b"}
+{
+  "name":"CID Asset Photo Labeler",
+  "short_name":"CID Labeler",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#edf1f4",
+  "theme_color":"#071a2b",
+  "icons":[]
+}

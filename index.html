@@ -80,11 +80,11 @@ input[type=text],input[type=number],input[type=time],input[type=date]{width:100%
 <div class="field full"><div class="duration" id="duration1">STAGE 1 DURATION: —</div></div>
 <div class="field full"><label>STAGE 1 FINAL CONDUCTIVITY</label><div class="input-unit"><input id="conductivity1" type="number" inputmode="decimal" step="any" min="0" placeholder="e.g. 1.211"><span>µS/cm</span></div></div>
 
-<div class="field full stage-title">STAGE 2</div>
+<div class="field full stage-title">STAGE 2 — CHEMICAL PASSIVATION</div>
 <div class="field"><label>CHEMICAL</label><input id="chemical2" type="text" placeholder="e.g. CiP200"></div>
 <div class="field"><label>AMOUNT OF CHEMICAL</label><input id="amount2" type="text" placeholder="e.g. 200 L"></div>
-<div class="field"><label>START TIME</label><input id="start2" type="time"></div>
-<div class="field"><label>FINISH TIME</label><input id="finish2" type="time"></div>
+<div class="field"><label>STAGE 2 START TIME</label><input id="start2" type="time"></div>
+<div class="field"><label>STAGE 2 FINISH TIME</label><input id="finish2" type="time"></div>
 <div class="field full"><div class="duration" id="duration2">STAGE 2 DURATION: —</div></div>
 <div class="field full"><label>STAGE 2 FINAL CONDUCTIVITY</label><div class="input-unit"><input id="conductivity2" type="number" inputmode="decimal" step="any" min="0" placeholder="e.g. 1.674"><span>µS/cm</span></div></div>
 <div class="field full"><div class="duration" id="totalDuration">TOTAL PASSIVATION DURATION: —</div></div>
@@ -306,9 +306,10 @@ $("beforePhoto").onchange=()=>handleReportPhoto("beforePhoto","beforeStatus",v=>
 $("afterPhoto").onchange=()=>handleReportPhoto("afterPhoto","afterStatus",v=>afterData=v);
 $("meterPhoto").onchange=()=>handleReportPhoto("meterPhoto","meterStatus",v=>meterData=v);
 
-// Small self-contained PDF writer. This avoids relying on an external PDF library/CDN.
+// Small self-contained PDF writer. No external PDF library is required.
+// This version builds the PDF as real byte arrays so JPEGs cannot corrupt xref offsets.
 function pdfEscape(s){
- s=String(s??"—").replace(/µ/g,"\xB5").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
+ s=String(s??"—").replace(/µ/g,"\\xB5").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
  return s.replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
 }
 function dataBytes(data){
@@ -324,18 +325,32 @@ function jpegSize(bytes){
  }
  throw new Error("Invalid JPEG");
 }
+function asciiBytes(str){
+ const out=[];
+ for(let i=0;i<str.length;i++){
+  const ch=str.charCodeAt(i);
+  // PDF WinAnsi byte for micro sign; everything else in our report is ASCII.
+  out.push(ch===0xB5?0xB5:(ch&255));
+ }
+ return new Uint8Array(out);
+}
+function joinBytes(parts){
+ let total=0;for(const p of parts)total+=p.length;
+ const out=new Uint8Array(total);let pos=0;
+ for(const p of parts){out.set(p,pos);pos+=p.length;}
+ return out;
+}
+function pdfObjectBytes(bodyParts){
+ return joinBytes([asciiBytes(bodyParts[0]),...bodyParts.slice(1)]);
+}
 function mm(v){return v*2.8346456693}
 function pdfText(stream,text,x,y,size,bold=false){
  const font=bold?"/F2":"/F1";
  stream.push(`BT ${font} ${size} Tf ${x} ${y} Td (${pdfEscape(text)}) Tj ET`);
 }
-function pdfRect(stream,x,y,w,h,fill){
- stream.push(`${fill} rg ${x} ${y} ${w} ${h} re f`);
-}
-function pdfLine(stream,x1,y1,x2,y2){
- stream.push(`0.80 0.85 0.88 RG 0.6 w ${x1} ${y1} m ${x2} ${y2} l S`);
-}
-function addPdfImage(stream, name, data, x,y,w,h, imageObjs){
+function pdfRect(stream,x,y,w,h,fill){stream.push(`${fill} rg ${x} ${y} ${w} ${h} re f`)}
+function pdfLine(stream,x1,y1,x2,y2){stream.push(`0.80 0.85 0.88 RG 0.6 w ${x1} ${y1} m ${x2} ${y2} l S`)}
+function addPdfImage(stream,name,data,x,y,w,h,imageObjs){
  const bytes=dataBytes(data),sz=jpegSize(bytes),scale=Math.min(w/sz.w,h/sz.h);
  const dw=sz.w*scale,dh=sz.h*scale;
  stream.push(`q ${dw} 0 0 ${dh} ${x+(w-dw)/2} ${y+(h-dh)/2} cm /${name} Do Q`);
@@ -343,15 +358,16 @@ function addPdfImage(stream, name, data, x,y,w,h, imageObjs){
 }
 function buildPdf(pages){
  const objects=[];
- const add=s=>{objects.push(s);return objects.length};
- const catalog=add(null),pagesObj=add(null);
- const font1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
- const font2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+ const add=(parts)=>{objects.push(parts);return objects.length};
+ const catalog=add([asciiBytes("")]),pagesObj=add([asciiBytes("")]);
+ const font1=add([asciiBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")]);
+ const font2=add([asciiBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")]);
  const pageRefs=[];
  for(const page of pages){
   const imageRefs={};
   for(const im of page.images){
-   const obj=add(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>\nstream\n${String.fromCharCode(...im.bytes)}\nendstream`);
+   const header=`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>\nstream\n`;
+   const obj=add([asciiBytes(header),im.bytes,asciiBytes("\nendstream")]);
    imageRefs[im.name]=obj;
   }
   let res=`<< /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >>`;
@@ -359,41 +375,36 @@ function buildPdf(pages){
    res+=` /XObject << ${Object.entries(imageRefs).map(([n,o])=>`/${n} ${o} 0 R`).join(" ")} >>`;
   }
   res+=" >>";
-  const contentBytes=new TextEncoder().encode(page.stream.join("\n"));
-  const content=add(`<< /Length ${contentBytes.length} >>\nstream\n${page.stream.join("\n")}\nendstream`);
-  const pageObj=add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 595.28 841.89] /Resources ${res} /Contents ${content} 0 R >>`);
+  const contentText=page.stream.join("\n");
+  const contentBytes=asciiBytes(contentText);
+  const content=add([asciiBytes(`<< /Length ${contentBytes.length} >>\nstream\n`),contentBytes,asciiBytes("\nendstream")]);
+  const pageObj=add([asciiBytes(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 595.28 841.89] /Resources ${res} /Contents ${content} 0 R >>`)]);
   pageRefs.push(pageObj);
  }
- objects[catalog-1]=`<< /Type /Catalog /Pages ${pagesObj} 0 R >>`;
- objects[pagesObj-1]=`<< /Type /Pages /Kids [${pageRefs.map(o=>o+" 0 R").join(" ")}] /Count ${pageRefs.length} >>`;
- let pdf="%PDF-1.4\n%\xFF\xFF\xFF\xFF\n",offsets=[0];
+ objects[catalog-1]=[asciiBytes(`<< /Type /Catalog /Pages ${pagesObj} 0 R >>`)];
+ objects[pagesObj-1]=[asciiBytes(`<< /Type /Pages /Kids [${pageRefs.map(o=>o+" 0 R").join(" ")}] /Count ${pageRefs.length} >>`)];
+ const header=asciiBytes("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
+ const chunks=[header];let offset=header.length,offsets=[0];
  for(let i=0;i<objects.length;i++){
-  offsets.push(pdf.length);
-  pdf+=`${i+1} 0 obj\n${objects[i]}\nendobj\n`;
+  offsets.push(offset);
+  const obj=joinBytes([asciiBytes(`${i+1} 0 obj\n`),...objects[i],asciiBytes("\nendobj\n")]);
+  chunks.push(obj);offset+=obj.length;
  }
- const xref=pdf.length;
- pdf+=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`;
- for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
- pdf+=`trailer\n<< /Size ${objects.length+1} /Root ${catalog} 0 R >>\nstartxref\n${xref}\n%%EOF`;
- const bytes=new Uint8Array(pdf.length);
- for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;
- return new Blob([bytes],{type:"application/pdf"});
+ const xrefOffset=offset;
+ let xref=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`;
+ for(let i=1;i<offsets.length;i++)xref+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+ xref+=`trailer\n<< /Size ${objects.length+1} /Root ${catalog} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+ chunks.push(asciiBytes(xref));
+ return new Blob(chunks,{type:"application/pdf"});
 }
 function reportPageBase(stream,title,subtitle){
  pdfRect(stream,0,0,595.28,841.89,"1 1 1");
  pdfRect(stream,0,760,595.28,81.89,"0.027 0.102 0.169");
- pdfText(stream,title,235,807,19,true);
- pdfText(stream,subtitle,235,785,9,false);
+ pdfText(stream,title,235,807,19,true);pdfText(stream,subtitle,235,785,9,false);
 }
 function reportTable(stream,rows,yTop){
  const x=43,w=510,rh=23,labelW=135;
- rows.forEach((r,i)=>{
-  const y=yTop-i*rh-rh;
-  pdfRect(stream,x,y,w,rh,i%2?"0.957 0.969 0.976":"0.914 0.933 0.949");
-  pdfText(stream,r[0],x+10,y+8,8,true);
-  pdfText(stream,r[1],x+labelW,y+8,9,false);
-  pdfLine(stream,x,y,x+w,y);
- });
+ rows.forEach((r,i)=>{const y=yTop-i*rh-rh;pdfRect(stream,x,y,w,rh,i%2?"0.957 0.969 0.976":"0.914 0.933 0.949");pdfText(stream,r[0],x+10,y+8,8,true);pdfText(stream,r[1],x+labelW,y+8,9,false);pdfLine(stream,x,y,x+w,y);});
 }
 
 async function createPassivationReport(){
@@ -478,6 +489,7 @@ $("create").onclick=async()=>{
  $("create").disabled=false;
 };
 if($("labelType")) updateLabelType();
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(()=>{})); }
 </script>
 </body>
 </html>
