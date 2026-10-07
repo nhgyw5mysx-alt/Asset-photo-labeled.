@@ -33,7 +33,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 </head>
 <body>
 <div class="app">
-<div class="top"><span class="version-badge">VERSION V28</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
+<div class="top"><span class="version-badge">VERSION V29</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
 
 <div class="card" id="assetPhotoCard">
 <div class="selector">
@@ -492,7 +492,7 @@ async function createPassivationReport(){
  if(stage2HasData)stages.push({n:2,c:c2,a:a2,s:s2,f:f2,m:m2??0,cond:cond2,meter:meterData2});
  const total=stages.reduce((sum,s)=>sum+s.m,0),pages=[];
  const addFooter=(pg,i)=>{pdfLineBlue(pg.stream,43,38,552,38);pdfText(pg.stream,"CID Enterprises Vic | Passivation Report",43,24,7,false);pdfText(pg.stream,`Page ${i+1} of 4`,475,24,7,false)};
- const heading=(stream,text,y)=>pdfTextBlue(stream,text,43,y,13,true);
+ const heading=(stream,text,x,y)=>pdfTextBlue(stream,text,x,y,13,true);
  const para=(stream,text,x,y,size=9,max=105,lh=13,bold=false)=>wrapText(text,max).slice(0,9).forEach((t,i)=>pdfText(stream,t,x,y-i*lh,size,bold));
  const addHeader=(st,ims)=>{
    pdfRect(st,0,0,595.28,841.89,"1 1 1");
