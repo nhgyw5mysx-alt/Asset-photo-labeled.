@@ -33,7 +33,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 </head>
 <body>
 <div class="app">
-<div class="top"><span class="version-badge">VERSION V19</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
+<div class="top"><span class="version-badge">VERSION V20</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
 
 <div class="card" id="assetPhotoCard">
 <div class="selector">
@@ -104,9 +104,25 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 <div class="status" id="afterStatus">Required</div>
 </div>
 <div class="field full report-photo">
-<label>3. CONDUCTIVITY METER READING</label>
-<input id="meterPhoto" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
-<div class="status" id="meterStatus">Required</div>
+<label>3. STAGE 1 CONDUCTIVITY METER READING</label>
+<input id="meterPhoto1" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="status" id="meterStatus1">Required</div>
+</div>
+<div class="field full stage-title">STAGE 2 EVIDENCE PHOTOS</div>
+<div class="field full report-photo">
+<label>4. STAGE 2 BEFORE PASSIVATION</label>
+<input id="beforePhoto2" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="status" id="beforeStatus2">Required</div>
+</div>
+<div class="field full report-photo">
+<label>5. STAGE 2 AFTER PASSIVATION</label>
+<input id="afterPhoto2" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="status" id="afterStatus2">Required</div>
+</div>
+<div class="field full report-photo">
+<label>6. STAGE 2 CONDUCTIVITY METER READING</label>
+<input id="meterPhoto2" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="status" id="meterStatus2">Required</div>
 </div>
 <div class="field full"><label>FINAL REPORT COMMENTS</label><textarea id="finalComments" rows="5" placeholder="Overall comments, conclusion, deviations, recommendations or additional notes…"></textarea></div>
 </div>
@@ -114,7 +130,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 
 </div>
 <button id="create" class="create" type="button" disabled>CREATE ASSET LABEL</button>
-<div class="hint">Asset labels: 1600 × 1400 px • Passivation: two-stage PDF report</div>
+<div class="hint">Asset labels: 1600 × 1400 px • Passivation: 5-page two-stage PDF report</div>
 </div>
 
 
@@ -131,24 +147,27 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 
 <script>
 const $=id=>document.getElementById(id);
-let img=null, fileUrl=null, photoDataUrl=null; let beforeData=null, afterData=null, meterData=null;
+let img=null, fileUrl=null, photoDataUrl=null; let beforeData=null, afterData=null, meterData=null, beforeData2=null, afterData2=null, meterData2=null;
 $("choose").onclick=()=> $("file").click();
 
 
 async function readReportPhoto(file){
  if(!file)return null;
  let source=file;
- if((file.type||"").toLowerCase().includes("heic") ||
-    (file.type||"").toLowerCase().includes("heif") ||
-    /\.(heic|heif)$/i.test(file.name)){
-   if(typeof heic2any!=="function") throw new Error("HEIC converter unavailable");
-   const converted=await heic2any({blob:file,toType:"image/jpeg",quality:0.92});
-   source=Array.isArray(converted)?converted[0]:converted;
+ const type=(file.type||"").toLowerCase();
+ if(type.includes("heic")||type.includes("heif")||/\.(heic|heif)$/i.test(file.name)){
+  if(typeof heic2any!=="function")throw new Error("HEIC converter unavailable");
+  const converted=await heic2any({blob:file,toType:"image/jpeg",quality:.92});
+  source=Array.isArray(converted)?converted[0]:converted;
  }
- return await new Promise((resolve,reject)=>{
-   const r=new FileReader();
-   r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(source);
- });
+ const raw=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(source);});
+ const im=new Image();
+ await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject;im.src=raw;});
+ const max=1800,scale=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight));
+ const cv=document.createElement("canvas");
+ cv.width=Math.max(1,Math.round(im.naturalWidth*scale));cv.height=Math.max(1,Math.round(im.naturalHeight*scale));
+ const ctx=cv.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,cv.width,cv.height);ctx.drawImage(im,0,0,cv.width,cv.height);
+ return cv.toDataURL("image/jpeg",.88);
 }
 async function handleReportPhoto(inputId,statusId,setter){
  try{
@@ -277,29 +296,6 @@ function updateConductivitySummary(){
 ["start1","finish1","start2","finish2"].forEach(id=>$(id).addEventListener("input",updateDurations));
 ["conductivity1","conductivity2"].forEach(id=>$(id).addEventListener("input",updateConductivitySummary));
 
-async function readReportPhoto(file){
- if(!file)return null;
- let source=file;
- if((file.type||"").toLowerCase().includes("heic") ||
-    (file.type||"").toLowerCase().includes("heif") ||
-    /\.(heic|heif)$/i.test(file.name)){
-   if(typeof heic2any!=="function")throw new Error("HEIC converter unavailable");
-   const converted=await heic2any({blob:file,toType:"image/jpeg",quality:.92});
-   source=Array.isArray(converted)?converted[0]:converted;
- }
- const raw=await new Promise((resolve,reject)=>{
-   const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(source);
- });
- // Normalize every report photo to JPEG for reliable PDF embedding.
- const im=new Image();
- await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject;im.src=raw});
- const cv=document.createElement("canvas");
- const max=1800,scale=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight));
- cv.width=Math.max(1,Math.round(im.naturalWidth*scale));
- cv.height=Math.max(1,Math.round(im.naturalHeight*scale));
- cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);
- return cv.toDataURL("image/jpeg",.88);
-}
 async function handleReportPhoto(inputId,statusId,setter){
  try{
   const f=$(inputId).files[0];if(!f)return;
@@ -309,7 +305,10 @@ async function handleReportPhoto(inputId,statusId,setter){
 }
 $("beforePhoto").onchange=()=>handleReportPhoto("beforePhoto","beforeStatus",v=>beforeData=v);
 $("afterPhoto").onchange=()=>handleReportPhoto("afterPhoto","afterStatus",v=>afterData=v);
-$("meterPhoto").onchange=()=>handleReportPhoto("meterPhoto","meterStatus",v=>meterData=v);
+$("meterPhoto1").onchange=()=>handleReportPhoto("meterPhoto1","meterStatus1",v=>meterData=v);
+$("beforePhoto2").onchange=()=>handleReportPhoto("beforePhoto2","beforeStatus2",v=>beforeData2=v);
+$("afterPhoto2").onchange=()=>handleReportPhoto("afterPhoto2","afterStatus2",v=>afterData2=v);
+$("meterPhoto2").onchange=()=>handleReportPhoto("meterPhoto2","meterStatus2",v=>meterData2=v);
 
 // Small self-contained PDF writer. No external PDF library is required.
 // V18: PDF images use consistent XObject names and all page content is embedded as byte arrays.
@@ -328,7 +327,7 @@ function dataBytes(data){
 function jpegSize(bytes){
  for(let i=2;i<bytes.length-9;i++){
   if(bytes[i]===0xFF && bytes[i+1]>=0xC0 && bytes[i+1]<=0xC3){
-   return {w:(bytes[i+5]<<8)|bytes[i+6],h:(bytes[i+7]<<8)|bytes[i+8]};
+   return {w:(bytes[i+7]<<8)|bytes[i+8],h:(bytes[i+5]<<8)|bytes[i+6]};
   }
  }
  throw new Error("Invalid JPEG");
@@ -352,9 +351,13 @@ function pdfObjectBytes(bodyParts){
  return joinBytes([asciiBytes(bodyParts[0]),...bodyParts.slice(1)]);
 }
 function mm(v){return v*2.8346456693}
-function pdfText(stream,text,x,y,size,bold=false){
+function pdfTextRaw(stream,text,x,y,size,bold=false){
  const font=bold?"/F2":"/F1";
  stream.push(`BT ${font} ${size} Tf ${x} ${y} Td (${pdfEscape(text)}) Tj ET`);
+}
+function pdfText(stream,text,x,y,size,bold=false){
+ stream.push("0 0 0 rg");
+ pdfTextRaw(stream,text,x,y,size,bold);
 }
 function pdfRect(stream,x,y,w,h,fill){stream.push(`${fill} rg ${x} ${y} ${w} ${h} re f`)}
 function pdfLine(stream,x1,y1,x2,y2){stream.push(`0.80 0.85 0.88 RG 0.6 w ${x1} ${y1} m ${x2} ${y2} l S`)}
@@ -454,13 +457,13 @@ function logoToPdfJpeg(img){
 }
 
 function pdfLineBlue(stream,x1,y1,x2,y2){stream.push(`0.08 0.49 0.73 RG 1.1 w ${x1} ${y1} m ${x2} ${y2} l S`)}
-function pdfTextBlue(stream,text,x,y,size,bold=false){stream.push(`0.08 0.49 0.73 rg`);pdfText(stream,text,x,y,size,bold);stream.push(`0 0 0 rg`)}
-function pdfTextItalic(stream,text,x,y,size){stream.push(`BT /F3 ${size} Tf ${x} ${y} Td (${pdfEscape(text)}) Tj ET`)}
+function pdfTextBlue(stream,text,x,y,size,bold=false){stream.push(`0.08 0.49 0.73 rg`);pdfTextRaw(stream,text,x,y,size,bold);stream.push(`0 0 0 rg`)}
+function pdfTextItalic(stream,text,x,y,size){stream.push(`0 0 0 rg BT /F3 ${size} Tf ${x} ${y} Td (${pdfEscape(text)}) Tj ET`)}
 function reportTableBlue(stream,rows,yTop){const x=43,w=510,rh=23,labelW=105;rows.forEach((r,i)=>{const y=yTop-i*rh-rh;pdfRect(stream,x,y,w,rh,i%2?"1 1 1":"0.965 0.965 0.965");pdfText(stream,r[0],x+7,y+8,8,true);pdfText(stream,r[1],x+labelW,y+8,8.5,false);pdfLineBlue(stream,x,y,x+w,y);stream.push(`0.08 0.49 0.73 RG 0.6 w ${x} ${y} m ${x} ${y+rh} l S`);stream.push(`0.08 0.49 0.73 RG 0.6 w ${x+labelW} ${y} m ${x+labelW} ${y+rh} l S`);stream.push(`0.08 0.49 0.73 RG 0.6 w ${x+w} ${y} m ${x+w} ${y+rh} l S`);})}
 
 async function createPassivationReport(){
- if(!beforeData||!afterData||!meterData){
-  $("status").textContent="Please add all 3 photos: before, after and conductivity meter.";
+ if(!beforeData||!afterData||!meterData||!beforeData2||!afterData2||!meterData2){
+  $("status").textContent="Please add all 6 evidence photos: Stage 1 before/after/meter and Stage 2 before/after/meter.";
   return;
  }
  const logoImg=await getLogo();
@@ -476,51 +479,48 @@ async function createPassivationReport(){
  const comments2=$("comments2").value.trim()||"No comments recorded.";
  const finalComments=$("finalComments").value.trim()||"No final comments recorded.";
  const pages=[];
- const addFooter=(pg,i)=>{pdfLine(pg.stream,43,38,552,38);pdfText(pg.stream,"CID Enterprises Vic | Passivation Report",43,24,7,false);pdfText(pg.stream,`Page ${i+1} of ${pages.length}`,475,24,7,false)};
- const heading=(stream,text,y)=>pdfText(stream,text,16,y,13,true);
+ const addFooter=(pg,i)=>{pdfLineBlue(pg.stream,43,38,552,38);pdfText(pg.stream,"CID Enterprises Vic | Passivation Report",43,24,7,false);pdfText(pg.stream,`Page ${i+1} of ${pages.length}`,475,24,7,false)};
+ const heading=(stream,text,y)=>pdfTextBlue(stream,text,43,y,13,true);
  const para=(stream,text,x,y,size=9,max=105,lh=13)=>wrapText(text,max).slice(0,8).forEach((t,i)=>pdfText(stream,t,x,y-i*lh,size,false));
-
- // PAGE 1 — matches the user's reference report: logo, title, info table, overview, Stage 1 and pre photo
- { const st=[],ims=[]; reportPageBase(st,"", "", ims, null);
-   // white header with centred logo and blue rules
-   pdfLineBlue(st,43,814,552,814); addPdfImage(st,"Logo",logoData,205,758,185,65,ims); pdfTextBlue(st,"Passivation Report",211,735,17,true); pdfLineBlue(st,43,720,552,720);
-   reportTableBlue(st,[
-    ["Systems",system],["Location",location],["Date",date],["Report Type","Passivation Report"],["Conducted by",by]
-   ],700);
-   heading(st,"1. Overview",43,555);
-   para(st,`Passivation was performed on ${system} at ${location}. Work was carried out by ${by}. The passivation consisted of two chemical stages. Stage 1 used ${c1} (${a1}) for ${formatMinutes(m1)} and Stage 2 used ${c2} (${a2}) for ${formatMinutes(m2)}.`,43,535,8.8,105,13);
-   heading(st,`2. ${system} — Stage 1`,43,455);
-   pdfText(st,`Run duration: ${formatMinutes(m1)}`,43,435,9,false); pdfText(st,`Chemical used: ${c1}`,43,420,9,false); pdfText(st,`Chemical amount: ${a1}`,43,405,9,false); pdfText(st,`Final conductivity: ${cond1} µS/cm`,43,390,9,false);
-   para(st,`Comments: ${comments1}`,43,370,8.5,105,12);
-   addPdfImage(st,"Im1",beforeData,112,92,370,245,ims); pdfTextItalic(st,"Photo 1 – Pre-passivation condition.",190,78,8);
-   pages.push({stream:st,images:ims}); }
-
- // PAGE 2 — post-passivation stage 1
- { const st=[],ims=[]; reportPageBase(st,"", "", ims, null); pdfLineBlue(st,43,814,552,814); addPdfImage(st,"Logo",logoData,205,758,185,65,ims); pdfTextBlue(st,"Passivation Report",211,735,17,true); pdfLineBlue(st,43,720,552,720);
-   heading(st,`Stage 1 — Post-passivation`,43,680); addPdfImage(st,"Im1",afterData,90,380,415,255,ims); pdfTextItalic(st,"Photo 2 – Post-passivation condition.",185,365,8);
-   heading(st,"Stage 1 comments",43,325); para(st,comments1,43,305,9,100,14);
-   heading(st,"Stage 1 final conductivity",43,220); para(st,`Final flush conductivity recorded as ${cond1} µS/cm. Stage 1 started at ${s1} and finished at ${f1}, for a total duration of ${formatMinutes(m1)}.`,43,200,9,100,14);
-   pages.push({stream:st,images:ims}); }
-
- // PAGE 3 — meter reading and Stage 2 details
- { const st=[],ims=[]; reportPageBase(st,"", "", ims, null); pdfLineBlue(st,43,814,552,814); addPdfImage(st,"Logo",logoData,205,758,185,65,ims); pdfTextBlue(st,"Passivation Report",211,735,17,true); pdfLineBlue(st,43,720,552,720);
-   heading(st,"Final conductivity reading — Stage 1",43,680); para(st,`Final flush conductivity recorded as ${cond1} µS/cm. Conductivity meter photo supplied with this report.`,43,660,9,105,14); addPdfImage(st,"Im1",meterData,155,420,285,220,ims); pdfTextItalic(st,`Photo 3 – Conductivity meter reading: Final flush ${cond1} µS/cm.`,120,405,8);
-   heading(st,`3. ${system} — Stage 2`,43,355); pdfText(st,`Run duration: ${formatMinutes(m2)}`,43,335,9,false); pdfText(st,`Chemical used: ${c2}`,43,320,9,false); pdfText(st,`Chemical amount: ${a2}`,43,305,9,false); pdfText(st,`Start time: ${s2}`,43,290,9,false); pdfText(st,`Finish time: ${f2}`,43,275,9,false); pdfText(st,`Final conductivity: ${cond2} µS/cm`,43,260,9,false); para(st,`Comments: ${comments2}`,43,240,8.5,105,12);
-   pages.push({stream:st,images:ims}); }
-
- // PAGE 4 — Stage 2 completion and conclusion, matching reference placement
- { const st=[],ims=[]; reportPageBase(st,"", "", ims, null); pdfLineBlue(st,43,814,552,814); addPdfImage(st,"Logo",logoData,205,758,185,65,ims); pdfTextBlue(st,"Passivation Report",211,735,17,true); pdfLineBlue(st,43,720,552,720);
-   heading(st,"Stage 2 — Post-passivation condition",43,680); addPdfImage(st,"Im1",afterData,150,445,295,190,ims); pdfTextItalic(st,"Photo 4 – Post-passivation condition.",185,430,8);
-   heading(st,"Final conductivity reading — Stage 2",43,385); para(st,`Final flush conductivity recorded as ${cond2} µS/cm. Stage 2 started at ${s2} and finished at ${f2}, for a total duration of ${formatMinutes(m2)}.`,43,365,9,100,14);
-   heading(st,"4. Conclusion",43,285); para(st,`Passivation of ${system} was completed in two stages. Total duration was ${formatMinutes(total)}. Final conductivity values were ${cond1} µS/cm (Stage 1) and ${cond2} µS/cm (Stage 2). Work was performed by ${by}.`,43,265,9,100,14);
-   pages.push({stream:st,images:ims}); }
-
- // PAGE 5 — sign-off / final comments
- { const st=[],ims=[]; reportPageBase(st,"", "", ims, null); pdfLineBlue(st,43,814,552,814); addPdfImage(st,"Logo",logoData,205,758,185,65,ims); pdfTextBlue(st,"Passivation Report",211,735,17,true); pdfLineBlue(st,43,720,552,720);
-   pdfTextBlue(st,"5. Final report comments",43,675,13,true); pdfRect(st,43,500,510,140,"0.957 0.969 0.976"); para(st,finalComments,58,615,9,92,14);
-   pdfTextBlue(st,"Passivation completed satisfactorily.",43,425,12,true); pdfText(st,"Report prepared by CID Enterprises Vic",43,390,9,false); pdfText(st,`Passivation conducted by: ${by}`,43,373,9,false); pdfText(st,`Date: ${date}`,43,356,9,false);
-   pages.push({stream:st,images:ims}); }
-
+ const addHeader=(st,ims)=>{
+   pdfRect(st,0,0,595.28,841.89,"1 1 1");
+   pdfLineBlue(st,43,820,552,820);
+   addPdfImage(st,"Logo",logoData,205,755,185,58,ims);
+   pdfTextBlue(st,"Passivation Report",147,710,17,true);
+   pdfLineBlue(st,43,696,552,696);
+ };
+ const addPhoto=(st,ims,name,data,x,y,w,h,caption)=>{addPdfImage(st,name,data,x,y,w,h,ims);pdfTextItalic(st,caption,43,y-16,8);};
+ // PAGE 1
+ {const st=[],ims=[];addHeader(st,ims);
+  reportTableBlue(st,[["Systems",system],["Location",location],["Dates",date],["Report Type","Passivation Report"],["Conducted by",by]],675);
+  heading(st,"1. Overview",43,525);
+  para(st,`Passivation was performed on ${system} at ${location}. Work was carried out by ${by}. The passivation consisted of two chemical stages. Stage 1 used ${c1} (${a1}) for ${formatMinutes(m1)}. Stage 2 used ${c2} (${a2}) for ${formatMinutes(m2)}.`,43,505,8.8,105,13);
+  heading(st,`2. ${system} — Stage 1`,43,425);
+  pdfText(st,`Run duration: ${formatMinutes(m1)}`,43,405,9);pdfText(st,`Chemical used: ${c1}`,43,390,9);pdfText(st,`Chemical amount: ${a1}`,43,375,9);pdfText(st,`Start time: ${s1}`,43,360,9);pdfText(st,`Finish time: ${f1}`,43,345,9);pdfText(st,`Final flush conductivity: ${cond1} µS/cm`,43,330,9);
+  para(st,`Comments: ${comments1}`,43,310,8.5,105,12);
+  addPhoto(st,ims,"Im1",beforeData,112,82,370,205,"Photo 1 – Pre-passivation condition.");
+  pages.push({stream:st,images:ims});}
+ // PAGE 2
+ {const st=[],ims=[];addHeader(st,ims);
+  heading(st,"Stage 1 — Post-passivation",43,680);addPhoto(st,ims,"Im1",afterData,90,405,415,245,"Photo 2 – Post-passivation condition.");
+  heading(st,"Stage 1 comments",43,345);para(st,comments1,43,325,9,100,14);
+  heading(st,"Final conductivity reading — Stage 1",43,240);para(st,`Final flush conductivity recorded as ${cond1} µS/cm. Stage 1 started at ${s1} and finished at ${f1}, for a total duration of ${formatMinutes(m1)}.`,43,220,9,100,14);
+  pages.push({stream:st,images:ims});}
+ // PAGE 3
+ {const st=[],ims=[];addHeader(st,ims);
+  heading(st,"Final conductivity reading — Stage 1",43,680);para(st,`Final flush conductivity recorded as ${cond1} µS/cm. Conductivity meter reading supplied with this report.`,43,660,9,105,14);addPhoto(st,ims,"Im1",meterData,155,420,285,220,`Photo 3 – Conductivity meter reading: Final flush ${cond1} µS/cm.`);
+  heading(st,`3. ${system} — Stage 2`,43,350);pdfText(st,`Run duration: ${formatMinutes(m2)}`,43,330,9);pdfText(st,`Chemical used: ${c2}`,43,315,9);pdfText(st,`Chemical amount: ${a2}`,43,300,9);pdfText(st,`Start time: ${s2}`,43,285,9);pdfText(st,`Finish time: ${f2}`,43,270,9);pdfText(st,`Final flush conductivity: ${cond2} µS/cm`,43,255,9);para(st,`Comments: ${comments2}`,43,235,8.5,105,12);
+  addPhoto(st,ims,"Im2",beforeData2,112,70,370,145,"Photo 4 – Pre-passivation condition, Stage 2.");
+  pages.push({stream:st,images:ims});}
+ // PAGE 4
+ {const st=[],ims=[];addHeader(st,ims);
+  heading(st,"Stage 2 — Post-passivation",43,680);addPhoto(st,ims,"Im1",afterData2,90,500,415,180,"Photo 5 – Post-passivation condition, Stage 2.");
+  heading(st,"Final conductivity reading — Stage 2",43,455);para(st,`Final flush conductivity recorded as ${cond2} µS/cm. Stage 2 started at ${s2} and finished at ${f2}, for a total duration of ${formatMinutes(m2)}.`,43,435,9,100,14);
+  addPhoto(st,ims,"Im2",meterData2,155,205,285,190,`Photo 6 – Conductivity meter reading: Final flush ${cond2} µS/cm.`);
+  heading(st,"4. Conclusion",43,150);para(st,`Passivation of ${system} was completed in two stages. Total duration was ${formatMinutes(total)}. Final flush conductivity values were ${cond1} µS/cm (Stage 1) and ${cond2} µS/cm (Stage 2). Work was performed by ${by}.`,43,130,9,100,13);
+  pages.push({stream:st,images:ims});}
+ // PAGE 5
+ {const st=[],ims=[];addHeader(st,ims);heading(st,"5. Final report comments",43,675);pdfRect(st,43,500,510,140,"0.965 0.965 0.965");para(st,finalComments,58,615,9,92,14);pdfTextBlue(st,"Passivation completed satisfactorily.",43,425,12,true);pdfText(st,"Report prepared by CID Enterprises Vic",43,390,9);pdfText(st,`Passivation conducted by: ${by}`,43,373,9);pdfText(st,`Date: ${date}`,43,356,9);pages.push({stream:st,images:ims});}
  pages.forEach((pg,i)=>addFooter(pg,i));
  const blob=buildPdf(pages),url=URL.createObjectURL(blob); window.__cidReportUrl=url;window.__cidReportBlob=blob; $("reportOutput").style.display="block"; $("reportOutput").scrollIntoView({behavior:"smooth"}); $("status").textContent="Passivation report created. Use Download PDF Report or Share / Save PDF.";
 }
