@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#edf1f4;color:#102131;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
-.app{max-width:760px;margin:auto;padding:18px 15px 42px}.top{background:#071a2b;color:#fff;padding:22px;border-radius:18px;box-shadow:0 8px 25px #0002}
+.app{max-width:760px;margin:auto;padding:18px 15px 42px}.top{background:#071a2b;color:#fff;padding:22px;border-radius:18px;box-shadow:0 8px 25px #0002;position:relative}.version-badge{position:absolute;top:14px;right:14px;background:#145d8a;color:#fff;border:1px solid #4d8fb6;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;letter-spacing:.4px}
 h1{margin:0;font-size:26px;letter-spacing:.2px}.top p{margin:6px 0 0;color:#cbd7e1;font-size:14px}
 .card{background:#fff;border-radius:18px;padding:18px;margin-top:15px;box-shadow:0 5px 18px #00000012}
 .choose,.create,.download{width:100%;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:800}
@@ -33,7 +33,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 </head>
 <body>
 <div class="app">
-<div class="top"><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
+<div class="top"><span class="version-badge">VERSION V18</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
 
 <div class="card" id="assetPhotoCard">
 <div class="selector">
@@ -312,7 +312,7 @@ $("afterPhoto").onchange=()=>handleReportPhoto("afterPhoto","afterStatus",v=>aft
 $("meterPhoto").onchange=()=>handleReportPhoto("meterPhoto","meterStatus",v=>meterData=v);
 
 // Small self-contained PDF writer. No external PDF library is required.
-// This version builds the PDF as real byte arrays so JPEGs cannot corrupt xref offsets.
+// V18: PDF images use consistent XObject names and all page content is embedded as byte arrays.
 function pdfEscape(s){
  s=String(s??"—").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
  // Use the PDF/WinAnsi octal escape for the micro sign.
@@ -408,7 +408,7 @@ function buildPdf(pages){
 function reportPageBase(stream,title,subtitle,imageObjs,logoData){
  pdfRect(stream,0,0,595.28,841.89,"1 1 1");
  pdfRect(stream,0,760,595.28,81.89,"0.027 0.102 0.169");
- if(logoData){addPdfImage(stream,"/Logo",logoData,43,773,155,52,imageObjs);}
+ if(logoData){addPdfImage(stream,"Logo",logoData,43,773,155,52,imageObjs);}
  pdfText(stream,title,235,807,19,true);pdfText(stream,subtitle,235,785,9,false);
 }
 function reportTable(stream,rows,yTop){
@@ -483,19 +483,19 @@ async function createPassivationReport(){
  const overview=`Two-stage passivation was performed on ${system} at ${location}. Stage 1 used ${c1} (${a1}) for ${formatMinutes(m1)}. Stage 2 used ${c2} (${a2}) for ${formatMinutes(m2)}. Total passivation duration was ${formatMinutes(total)}.`;
  wrapText(overview,105).slice(0,4).forEach((t,i)=>pdfText(p1,t,43,338-i*13,8.5,false));
  pdfText(p1,"2. Pre-passivation condition",43,270,13,true);
- addPdfImage(p1,"/Im1",beforeData,75,70,445,175,ims1);
+ addPdfImage(p1,"Im1",beforeData,75,70,445,175,ims1);
  pdfText(p1,"Photo 1 - Pre-passivation condition.",220,56,8,false);
  const pages=[{stream:p1,images:ims1}];
 
  // PAGE 2 — post photo, conductivity and phase comments
  const p2=[],ims2=[];reportPageBase(p2,"PASSIVATION REPORT","CID ENTERPRISES VIC",ims2,logoData);
  pdfText(p2,"3. Post-passivation condition",43,725,13,true);
- addPdfImage(p2,"/Im1",afterData,75,515,445,190,ims2);
+ addPdfImage(p2,"Im1",afterData,75,515,445,190,ims2);
  pdfText(p2,"Photo 2 - Post-passivation condition.",220,502,8,false);
  pdfText(p2,"4. Final conductivity readings",43,468,13,true);
  pdfText(p2,`Stage 1 final conductivity: ${cond1} µS/cm`,43,448,9,false);
  pdfText(p2,`Stage 2 final conductivity: ${cond2} µS/cm`,43,432,9,false);
- addPdfImage(p2,"/Im2",meterData,75,215,445,190,ims2);
+ addPdfImage(p2,"Im2",meterData,75,215,445,190,ims2);
  pdfText(p2,"Photo 3 - Conductivity meter reading.",220,202,8,false);
  let cy=175;
  cy=addCommentBlock(p2,"Stage 1 comments",comments1,cy);
