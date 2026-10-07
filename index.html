@@ -314,8 +314,11 @@ $("meterPhoto").onchange=()=>handleReportPhoto("meterPhoto","meterStatus",v=>met
 // Small self-contained PDF writer. No external PDF library is required.
 // This version builds the PDF as real byte arrays so JPEGs cannot corrupt xref offsets.
 function pdfEscape(s){
- s=String(s??"—").replace(/µ/g,"\\xB5").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
- return s.replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+ s=String(s??"—").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
+ // Use the PDF/WinAnsi octal escape for the micro sign.
+ // This prevents iOS Preview from displaying the old literal "xB5" text.
+ s=s.replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+ return s.replace(/µ/g,"\\265");
 }
 function dataBytes(data){
  const b64=data.split(",")[1],bin=atob(b64),out=new Uint8Array(bin.length);
@@ -365,8 +368,8 @@ function buildPdf(pages){
  const objects=[];
  const add=(parts)=>{objects.push(parts);return objects.length};
  const catalog=add([asciiBytes("")]),pagesObj=add([asciiBytes("")]);
- const font1=add([asciiBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")]);
- const font2=add([asciiBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")]);
+ const font1=add([asciiBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")]);
+ const font2=add([asciiBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")]);
  const pageRefs=[];
  for(const page of pages){
   const imageRefs={};
@@ -402,9 +405,10 @@ function buildPdf(pages){
  chunks.push(asciiBytes(xref));
  return new Blob(chunks,{type:"application/pdf"});
 }
-function reportPageBase(stream,title,subtitle){
+function reportPageBase(stream,title,subtitle,imageObjs,logoData){
  pdfRect(stream,0,0,595.28,841.89,"1 1 1");
  pdfRect(stream,0,760,595.28,81.89,"0.027 0.102 0.169");
+ if(logoData){addPdfImage(stream,"/Logo",logoData,43,773,155,52,imageObjs);}
  pdfText(stream,title,235,807,19,true);pdfText(stream,subtitle,235,785,9,false);
 }
 function reportTable(stream,rows,yTop){
@@ -433,13 +437,29 @@ function addCommentBlock(stream,title,text,y){
  return y-18-Math.min(lines.length,5)*12;
 }
 
+function formatReportDate(value){
+ if(!value)return "—";
+ const [y,m,d]=value.split("-").map(Number);
+ if(!y||!m||!d)return value;
+ return new Date(y,m-1,d).toLocaleDateString("en-AU",{day:"numeric",month:"long",year:"numeric"});
+}
+
+function logoToPdfJpeg(img){
+ const c=document.createElement("canvas"),w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+ const maxW=900,maxH=300,scale=Math.min(1,maxW/w,maxH/h);
+ c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
+ const x=c.getContext("2d");x.fillStyle="#ffffff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
+ return c.toDataURL("image/jpeg",0.94);
+}
 async function createPassivationReport(){
  if(!beforeData||!afterData||!meterData){
   $("status").textContent="Please add all 3 photos: before, after and conductivity meter.";
   return;
  }
+ const logoImg=await getLogo();
+ const logoData=logoToPdfJpeg(logoImg);
  const system=$("system").value.trim()||"—",location=$("pLocation").value.trim()||"—";
- const date=$("pDate").value||"—",by=$("conductedBy").value.trim()||"—";
+ const date=formatReportDate($("pDate").value),by=$("conductedBy").value.trim()||"—";
  const c1=$("chemical1").value.trim()||"—",a1=$("amount1").value.trim()||"—";
  const c2=$("chemical2").value.trim()||"—",a2=$("amount2").value.trim()||"—";
  const s1=$("start1").value||"—",f1=$("finish1").value||"—",s2=$("start2").value||"—",f2=$("finish2").value||"—";
@@ -450,7 +470,7 @@ async function createPassivationReport(){
  const finalComments=$("finalComments").value.trim()||"No final comments recorded.";
 
  // PAGE 1 — report details and pre-passivation photo
- const p1=[],ims1=[];reportPageBase(p1,"PASSIVATION REPORT","CID ENTERPRISES VIC");
+ const p1=[],ims1=[];reportPageBase(p1,"PASSIVATION REPORT","CID ENTERPRISES VIC",ims1,logoData);
  pdfText(p1,"Passivation Report",43,735,17,true);
  reportTable(p1,[
   ["System",system],["Location",location],["Date",date],["Conducted by",by],
@@ -468,7 +488,7 @@ async function createPassivationReport(){
  const pages=[{stream:p1,images:ims1}];
 
  // PAGE 2 — post photo, conductivity and phase comments
- const p2=[],ims2=[];reportPageBase(p2,"PASSIVATION REPORT","CID ENTERPRISES VIC");
+ const p2=[],ims2=[];reportPageBase(p2,"PASSIVATION REPORT","CID ENTERPRISES VIC",ims2,logoData);
  pdfText(p2,"3. Post-passivation condition",43,725,13,true);
  addPdfImage(p2,"/Im1",afterData,75,515,445,190,ims2);
  pdfText(p2,"Photo 2 - Post-passivation condition.",220,502,8,false);
@@ -482,15 +502,19 @@ async function createPassivationReport(){
  cy=addCommentBlock(p2,"Stage 2 comments",comments2,cy-4);
  pages.push({stream:p2,images:ims2});
 
- // PAGE 3 — conclusion and final comments
- const p3=[],ims3=[];reportPageBase(p3,"PASSIVATION REPORT","CID ENTERPRISES VIC");
+ // PAGE 3 — conclusion, final comments and sign-off
+ const p3=[],ims3=[];reportPageBase(p3,"PASSIVATION REPORT","CID ENTERPRISES VIC",ims3,logoData);
  pdfText(p3,"5. Conclusion",43,725,13,true);
+ pdfRect(p3,43,590,510,115,"0.957 0.969 0.976");
  const conclusion=`Passivation of ${system} was completed in two stages. Total duration was ${formatMinutes(total)}. Stage 1 final conductivity was ${cond1} µS/cm and Stage 2 final conductivity was ${cond2} µS/cm. Work was conducted by ${by}.`;
- wrapText(conclusion,105).forEach((t,i)=>pdfText(p3,t,43,700-i*15,9,false));
- addCommentBlock(p3,"Final report comments",finalComments,610);
- pdfText(p3,"Report prepared by CID Enterprises Vic",43,470,10,true);
- pdfText(p3,`Passivation conducted by: ${by}`,43,450,9,false);
- pdfText(p3,`Date: ${date}`,43,434,9,false);
+ wrapText(conclusion,92).slice(0,6).forEach((t,i)=>pdfText(p3,t,58,680-i*15,9,false));
+ addCommentBlock(p3,"Final report comments",finalComments,545);
+ pdfRect(p3,43,335,510,105,"0.914 0.933 0.949");
+ pdfText(p3,"REPORT SIGN-OFF",58,418,11,true);
+ pdfText(p3,"Report prepared by CID Enterprises Vic",58,395,9,false);
+ pdfText(p3,`Passivation conducted by: ${by}`,58,377,9,false);
+ pdfText(p3,`Date: ${date}`,58,359,9,false);
+ pdfText(p3,"Passivation record completed",58,341,9,true);
  pages.push({stream:p3,images:ims3});
 
  pages.forEach((pg,i)=>{
