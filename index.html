@@ -1,214 +1,301 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#073B78">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Asset Labeler">
-<link rel="manifest" href="manifest.webmanifest">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1f33">
 <title>Asset Photo Labeler</title>
+<link rel="manifest" href="manifest.webmanifest">
 <style>
-*{box-sizing:border-box}
-body{margin:0;background:#f3f5f8;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
-.wrap{max-width:720px;margin:auto;padding:18px 14px 45px}
-h1{margin:5px 0 4px;color:#073B78;font-size:28px}
-.sub{margin:0 0 18px;color:#667085;font-size:16px}
-.card{background:#fff;border-radius:15px;padding:18px;margin:13px 0;box-shadow:0 2px 12px rgba(0,0,0,.07)}
-label.field{display:block;font-weight:750;font-size:14px;margin:13px 0 6px}
-input[type=text]{width:100%;padding:14px;border:1px solid #cbd5e1;border-radius:10px;font-size:17px;background:#fff}
-.photo-wrap{position:relative}
-.photo-btn{width:100%;height:58px;border-radius:11px;background:#073B78;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800}
-#photoInput{position:absolute;inset:0;width:100%;height:58px;opacity:0;cursor:pointer}
-#preview{display:none;width:100%;max-height:480px;object-fit:contain;margin-top:14px;border-radius:10px;background:#111}
-#create{width:100%;border:0;border-radius:11px;padding:17px;background:#073B78;color:#fff;font-size:18px;font-weight:800}
-#create:active{transform:scale(.99)}
-#status{display:none;margin-top:12px;padding:12px;border-radius:9px;background:#eef3f9;color:#073B78;white-space:pre-wrap}
-#status.error{background:#fff0f0;color:#a40000}
-#resultCard{display:none}
-#result{display:block;width:100%;border-radius:9px}
-#download{display:block;text-align:center;text-decoration:none;margin-top:12px;padding:15px;border-radius:11px;background:#198754;color:#fff;font-weight:800}
-.small{font-size:13px;color:#667085;margin-top:8px}
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+    background:#eef1f4;color:#14202b;
+  }
+  .app{max-width:760px;margin:auto;padding:20px 16px 40px}
+  .top{
+    background:#0b1f33;color:#fff;border-radius:16px;padding:20px;
+    box-shadow:0 8px 24px rgba(0,0,0,.12);margin-bottom:16px
+  }
+  .top h1{margin:0;font-size:24px;letter-spacing:.2px}
+  .top p{margin:6px 0 0;color:#cbd6df;font-size:14px}
+  .card{
+    background:#fff;border-radius:16px;padding:18px;
+    box-shadow:0 4px 18px rgba(0,0,0,.08);margin-bottom:16px
+  }
+  .choose{
+    width:100%;border:0;border-radius:12px;background:#0b1f33;color:#fff;
+    padding:15px;font-size:17px;font-weight:700;cursor:pointer
+  }
+  input[type=file]{display:block;width:100%;margin-top:10px}
+  .preview{
+    display:none;width:100%;max-height:360px;object-fit:contain;
+    border-radius:10px;margin-top:14px;background:#111
+  }
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .field{margin-top:12px}
+  .field.full{grid-column:1/-1}
+  label{display:block;font-weight:700;font-size:13px;margin-bottom:6px;color:#344454}
+  input[type=text]{
+    width:100%;padding:12px;border:1px solid #cbd3da;border-radius:9px;
+    font-size:16px;background:#fff
+  }
+  .create{
+    width:100%;margin-top:16px;padding:15px;border:0;border-radius:12px;
+    background:#1b5e8c;color:#fff;font-size:17px;font-weight:800;cursor:pointer
+  }
+  .create:disabled{background:#aeb8c1;cursor:not-allowed}
+  .hint{font-size:12px;color:#667583;margin-top:8px}
+  #result{display:none;width:100%;border-radius:10px;background:#111}
+  .download{
+    display:block;text-align:center;text-decoration:none;margin-top:12px;
+    padding:13px;border-radius:10px;background:#0b1f33;color:#fff;font-weight:700
+  }
+  .status{font-size:13px;margin-top:10px;color:#52606d;min-height:18px}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}.field.full{grid-column:auto}}
 </style>
 </head>
 <body>
-<div class="wrap">
-<h1>Asset Photo Labeler</h1>
-<p class="sub">Upload a photo, enter the asset information, then create the label.</p>
-
-<div class="card">
-  <div class="photo-wrap">
-    <div class="photo-btn">📷 Choose Photo</div>
-    <input id="photoInput" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="app">
+  <div class="top">
+    <h1>Asset Photo Labeler</h1>
+    <p>Create consistent, professional equipment identification photos.</p>
   </div>
-  <img id="preview" alt="Selected photo">
-  <div id="status"></div>
+
+  <div class="card">
+    <button class="choose" id="chooseBtn" type="button">Choose Photo</button>
+    <input id="photoInput" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+    <img id="preview" class="preview" alt="Selected photo">
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="field full">
+        <label for="location">Location</label>
+        <input id="location" type="text" placeholder="e.g. Building 3">
+      </div>
+      <div class="field">
+        <label for="model">Model</label>
+        <input id="model" type="text" placeholder="Model">
+      </div>
+      <div class="field">
+        <label for="size">Size</label>
+        <input id="size" type="text" placeholder='e.g. 2"'>
+      </div>
+      <div class="field">
+        <label for="serial">Serial Number</label>
+        <input id="serial" type="text" placeholder="Serial number">
+      </div>
+      <div class="field">
+        <label for="engineering">Engineering Number</label>
+        <input id="engineering" type="text" placeholder="Engineering number">
+      </div>
+    </div>
+    <button class="create" id="create" type="button" disabled>Create Label</button>
+    <div class="hint">Every generated image is fixed at 1600 × 1400 px.</div>
+  </div>
+
+  <div class="card" id="outputCard" style="display:none">
+    <img id="result" alt="Generated asset label">
+    <a id="download" class="download" download="asset-labelled.jpg">Download Label</a>
+  </div>
 </div>
 
-<div class="card">
-  <label class="field" for="location">Location</label>
-  <input id="location" type="text" placeholder="Building / area">
-
-  <label class="field" for="model">Model</label>
-  <input id="model" type="text" placeholder="Model">
-
-  <label class="field" for="serial">Serial Number</label>
-  <input id="serial" type="text" placeholder="Serial number">
-
-  <label class="field" for="engineering">Engineering Number</label>
-  <input id="engineering" type="text" placeholder="Engineering number">
-
-  <label class="field" for="size">Size</label>
-  <input id="size" type="text" placeholder='e.g. 2"'>
-</div>
-
-<div class="card">
-  <button id="create" type="button">🏷️ Create Label</button>
-  <div class="small">The finished image will appear below.</div>
-</div>
-
-<div id="resultCard" class="card">
-  <h2 style="margin:0 0 14px;color:#073B78">Finished Image</h2>
-  <img id="result" alt="Finished labeled image">
-  <a id="download" href="#" download="asset-labelled.jpg">⬇️ Download Labeled Image</a>
-</div>
-</div>
-
-<canvas id="canvas" style="display:none"></canvas>
+<canvas id="canvas" width="1600" height="1400" style="display:none"></canvas>
 
 <script>
-(function(){
-"use strict";
-var photoInput=document.getElementById("photoInput");
-var preview=document.getElementById("preview");
-var status=document.getElementById("status");
-var create=document.getElementById("create");
-var canvas=document.getElementById("canvas");
-var resultCard=document.getElementById("resultCard");
-var result=document.getElementById("result");
-var download=document.getElementById("download");
-var image=null;
-var cidLogo=new Image();
-cidLogo.src="cid-logo.jpeg";
+const input = document.getElementById('photoInput');
+const chooseBtn = document.getElementById('chooseBtn');
+const preview = document.getElementById('preview');
+const createBtn = document.getElementById('create');
+const status = document.getElementById('status');
+const canvas = document.getElementById('canvas');
+const result = document.getElementById('result');
+const download = document.getElementById('download');
+const outputCard = document.getElementById('outputCard');
 
-function msg(t,error){
-  status.textContent=t;
-  status.style.display="block";
-  status.className=error?"error":"";
-}
+let image = new Image();
+let selectedFile = null;
 
-photoInput.addEventListener("change",function(){
-  var file=photoInput.files && photoInput.files[0];
-  if(!file)return;
-  msg("Loading photo…",false);
-  var reader=new FileReader();
-  reader.onload=function(){
-    var img=new Image();
-    img.onload=function(){
-      image=img;
-      preview.src=reader.result;
-      preview.style.display="block";
-      msg("Photo loaded ✓",false);
+chooseBtn.addEventListener('click', () => input.click());
+
+input.addEventListener('change', async () => {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  selectedFile = file;
+  status.textContent = 'Loading photo…';
+  createBtn.disabled = true;
+
+  try {
+    const url = URL.createObjectURL(file);
+    image = new Image();
+    image.onload = () => {
+      preview.src = url;
+      preview.style.display = 'block';
+      createBtn.disabled = false;
+      status.textContent = 'Photo ready.';
     };
-    img.onerror=function(){
-      image=null;
-      msg("Safari could not decode this image. Try taking a new photo or choose a JPG/PNG.",true);
+    image.onerror = () => {
+      status.textContent = 'This image could not be opened by Safari. Try JPG or PNG.';
+      createBtn.disabled = true;
     };
-    img.src=reader.result;
-  };
-  reader.onerror=function(){msg("Could not read the selected photo.",true)};
-  reader.readAsDataURL(file);
-});
-
-create.addEventListener("click",async function(){
-  try{
-    if(!image){msg("Please choose a photo first.",true);return}
-    create.textContent="Creating…";
-    if(!cidLogo.complete){
-      await new Promise(function(resolve,reject){
-        cidLogo.onload=resolve;
-        cidLogo.onerror=function(){reject(new Error("CID logo could not be loaded."))};
-      });
-    }
-
-    var fields=[
-      ["Location",document.getElementById("location").value.trim()||"—"],
-      ["Model",document.getElementById("model").value.trim()||"—"],
-      ["Serial Number",document.getElementById("serial").value.trim()||"—"],
-      ["Engineering Number",document.getElementById("engineering").value.trim()||"—"],
-      ["Size",document.getElementById("size").value.trim()||"—"]
-    ];
-
-    var w=Math.min(image.naturalWidth,1600);
-    var h=Math.round(image.naturalHeight*w/image.naturalWidth);
-    var row=68, header=96, labelH=header+fields.length*row+10;
-    canvas.width=w;
-    canvas.height=h+14+labelH;
-    var ctx=canvas.getContext("2d");
-    if(!ctx)throw new Error("Canvas is unavailable.");
-
-    ctx.fillStyle="#fff";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(image,0,0,w,h);
-
-    var top=h+14;
-    ctx.fillStyle="#fff";
-    ctx.fillRect(3,top+3,w-6,labelH-6);
-    ctx.strokeStyle="#073B78";
-    ctx.lineWidth=5;
-    ctx.strokeRect(3,top+3,w-6,labelH-6);
-
-    // CID Enterprises Vic logo
-    var logoImg = cidLogo;
-// The embedded logo is loaded synchronously from a data URL.
-    var logoH = 68;
-    var logoW = Math.min(w - 36, 430);
-    var ratio = logoImg.naturalWidth && logoImg.naturalHeight
-      ? logoImg.naturalWidth / logoImg.naturalHeight
-      : 2.7;
-    logoW = Math.min(logoW, logoH * ratio);
-    logoH = logoW / ratio;
-    ctx.drawImage(logoImg, (w-logoW)/2, top+8, logoW, logoH);
-
-    ctx.strokeStyle="#d5dbe3";
-    ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(12,top+78);ctx.lineTo(w-12,top+78);ctx.stroke();
-
-    var left=Math.round(w*.31);
-    fields.forEach(function(f,i){
-      var y=top+84+i*row;
-      ctx.fillStyle="#073B78";
-      ctx.fillRect(5,y,left-5,row);
-      ctx.fillStyle="#fff";
-      ctx.textAlign="left";
-      ctx.font="bold 23px Arial";
-      ctx.fillText(f[0]+":",17,y+43);
-
-      ctx.fillStyle="#073B78";
-      var size=23;
-      ctx.font="bold "+size+"px Arial";
-      while(ctx.measureText(f[1]).width>w-left-38 && size>13){
-        size--;ctx.font="bold "+size+"px Arial";
-      }
-      ctx.fillText(f[1],left+18,y+43);
-    });
-
-    var out=canvas.toDataURL("image/jpeg",.92);
-    result.src=out;
-    download.href=out;
-    resultCard.style.display="block";
-    resultCard.scrollIntoView({behavior:"smooth",block:"start"});
-    msg("Label created successfully ✓",false);
-  }catch(e){
-    console.error(e);
-    msg("Could not create label: "+(e.message||e),true);
-  }finally{
-    create.textContent="🏷️ Create Label";
+    image.src = url;
+  } catch (e) {
+    status.textContent = 'Could not load the selected photo.';
   }
 });
-})();
+
+function roundedRect(ctx,x,y,w,h,r){
+  const rr=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rr);
+  ctx.arcTo(x+w,y+h,x,y+h,rr);
+  ctx.arcTo(x,y+h,x,y,rr);
+  ctx.arcTo(x,y,x+w,y,rr);
+  ctx.closePath();
+}
+
+function drawCover(ctx,img,x,y,w,h){
+  const scale=Math.max(w/img.naturalWidth,h/img.naturalHeight);
+  const sw=img.naturalWidth*scale;
+  const sh=img.naturalHeight*scale;
+  const dx=x+(w-sw)/2;
+  const dy=y+(h-sh)/2;
+  ctx.drawImage(img,dx,dy,sw,sh);
+}
+
+function drawContain(ctx,img,x,y,w,h){
+  const scale=Math.min(w/img.naturalWidth,h/img.naturalHeight);
+  const sw=img.naturalWidth*scale;
+  const sh=img.naturalHeight*scale;
+  const dx=x+(w-sw)/2;
+  const dy=y+(h-sh)/2;
+  ctx.drawImage(img,dx,dy,sw,sh);
+}
+
+async function ensureLogo(){
+  if (window.cidLogo && cidLogo.complete && cidLogo.naturalWidth) return cidLogo;
+  const logo = new Image();
+  logo.src = 'cid-logo.jpeg';
+  await new Promise((resolve,reject)=>{
+    logo.onload=resolve;
+    logo.onerror=reject;
+  });
+  window.cidLogo=logo;
+  return logo;
+}
+
+createBtn.addEventListener('click', async () => {
+  if (!image || !image.naturalWidth) return;
+
+  createBtn.disabled = true;
+  status.textContent = 'Generating label…';
+
+  try {
+    const ctx = canvas.getContext('2d');
+    const W = 1600, H = 1400;
+    const photoH = 900;
+    const panelY = 920;
+    const panelH = H - panelY;
+
+    canvas.width=W; canvas.height=H;
+
+    // Background
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,W,H);
+
+    // Photo: fixed 1600 × 900 area, center-cropped with no stretching
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0,0,W,photoH);
+    ctx.clip();
+    drawCover(ctx,image,0,0,W,photoH);
+    ctx.restore();
+
+    // Photo bottom divider
+    ctx.fillStyle='#0b1f33';
+    ctx.fillRect(0,photoH,W,20);
+
+    // Professional label panel
+    ctx.fillStyle='#f7f9fb';
+    ctx.fillRect(0,panelY,W,panelH);
+
+    // Header
+    ctx.fillStyle='#0b1f33';
+    ctx.fillRect(0,panelY,W,120);
+
+    // Logo
+    const logo = await ensureLogo();
+    const maxLogoW=300, maxLogoH=82;
+    const scale=Math.min(maxLogoW/logo.naturalWidth,maxLogoH/logo.naturalHeight);
+    const lw=logo.naturalWidth*scale, lh=logo.naturalHeight*scale;
+    ctx.drawImage(logo,60,panelY+(120-lh)/2,lw,lh);
+
+    ctx.fillStyle='#ffffff';
+    ctx.font='800 34px Arial, sans-serif';
+    ctx.textAlign='right';
+    ctx.textBaseline='middle';
+    ctx.fillText('ASSET IDENTIFICATION',1540,panelY+60);
+
+    const fields=[
+      ['LOCATION', document.getElementById('location').value.trim() || '—'],
+      ['MODEL', document.getElementById('model').value.trim() || '—'],
+      ['SERIAL NUMBER', document.getElementById('serial').value.trim() || '—'],
+      ['ENGINEERING NUMBER', document.getElementById('engineering').value.trim() || '—'],
+      ['SIZE', document.getElementById('size').value.trim() || '—']
+    ];
+
+    const x0=60, labelW=330, valueX=x0+labelW+25;
+    const rowY=panelY+120, rowH=52;
+
+    fields.forEach((f,i)=>{
+      const y=rowY+i*rowH;
+
+      if(i%2===0){
+        ctx.fillStyle='#edf2f6';
+        ctx.fillRect(40,y,W-80,rowH);
+      }
+
+      ctx.fillStyle='#506170';
+      ctx.font='800 22px Arial, sans-serif';
+      ctx.textAlign='left';
+      ctx.textBaseline='middle';
+      ctx.fillText(f[0],x0,y+rowH/2);
+
+      ctx.fillStyle='#14202b';
+      ctx.font=(f[0]==='SERIAL NUMBER' ? '800 27px Arial, sans-serif' : '600 25px Arial, sans-serif');
+      ctx.fillText(f[1],valueX,y+rowH/2);
+
+      ctx.strokeStyle='#d6dde3';
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(40,y+rowH);
+      ctx.lineTo(W-40,y+rowH);
+      ctx.stroke();
+    });
+
+    // Footer
+    ctx.fillStyle='#0b1f33';
+    ctx.fillRect(0,H-24,W,24);
+
+    const dataUrl=canvas.toDataURL('image/jpeg',0.92);
+    result.src=dataUrl;
+    download.href=dataUrl;
+    download.download='asset-labelled.jpg';
+    outputCard.style.display='block';
+    status.textContent='Label created — 1600 × 1400 px.';
+    outputCard.scrollIntoView({behavior:'smooth',block:'start'});
+  } catch(err) {
+    console.error(err);
+    status.textContent='Could not create the label. Check that cid-logo.jpeg is in the same GitHub folder.';
+  } finally {
+    createBtn.disabled=false;
+  }
+});
 </script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("service-worker.js").catch(function(){})}</script>
 </body>
 </html>

@@ -3,6 +3,6 @@
   "short_name": "Asset Labeler",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f3f5f8",
-  "theme_color": "#073B78"
+  "background_color": "#eef1f4",
+  "theme_color": "#0b1f33"
 }
