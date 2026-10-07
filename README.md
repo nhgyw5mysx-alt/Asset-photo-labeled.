@@ -1,0 +1,1 @@
+# Asset-photo-labeled.
