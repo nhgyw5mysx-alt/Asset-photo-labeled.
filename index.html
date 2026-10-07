@@ -33,7 +33,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 </head>
 <body>
 <div class="app">
-<div class="top"><span class="version-badge">VERSION V29</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
+<div class="top"><span class="version-badge">VERSION V30</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
 
 <div class="card" id="assetPhotoCard">
 <div class="selector">
@@ -299,7 +299,7 @@ $("meterPhoto1").onchange=()=>handleReportPhoto("meterPhoto1","meterStatus1",v=>
 $("meterPhoto2").onchange=()=>handleReportPhoto("meterPhoto2","meterStatus2",v=>meterData2=v);
 
 // Small self-contained PDF writer. No external PDF library is required.
-// V26: simplified report structure; conclusion belongs in final comments.
+// V30: simplified report structure; conclusion belongs in final comments.
 function pdfEscape(s){
  s=String(s??"—").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
  // Use the PDF/WinAnsi octal escape for the micro sign.
@@ -535,7 +535,7 @@ async function createPassivationReport(){
    para(st,overview,43,513,8.8,105,13,false);
 
    // Fixed, non-overlapping stage slots. Headings are always above their own data and well clear of the footer.
-   const stageSlots = stages.length===1 ? [420] : [430,275];
+   const stageSlots = stages.length===1 ? [420] : [455,305];
    stages.forEach((stage,idx)=>{
      stage.seq=idx+2;
      const sy=stageSlots[idx];
@@ -556,7 +556,7 @@ async function createPassivationReport(){
    addPhoto(st,ims,"Before",beforeData,43,445,245,185,"Photo 1 – Pre-passivation condition.");
    addPhoto(st,ims,"After",afterData,307,445,245,185,"Photo 2 – Post-passivation condition.");
    heading(st,"Pre Passivation Comments:",43,365);para(st,preComments,43,343,9,100,14,false);
-   heading(st,"Post Passivation Comments:",43,275);para(st,postComments,43,253,9,100,14,false);
+   heading(st,"Post Passivation Comments:",43,300);para(st,postComments,43,278,9,100,14,false);
    pages.push({stream:st,images:ims});
  }
 
@@ -573,9 +573,9 @@ async function createPassivationReport(){
      heading(st,`Stage ${first.n} Final Conductivity`,43,625);
      para(st,`After flushing during Stage ${first.n}, a final conductivity reading of ${first.cond} µS/cm was recorded.`,43,603,9,100,14,false);
      addPhoto(st,ims,`Meter${first.n}`,first.meter,155,405,285,155,`Photo 3 – Final conductivity meter reading: ${first.cond} µS/cm (Stage ${first.n}).`);
-     heading(st,`Stage ${second.n} Final Conductivity`,43,320);
-     para(st,`After flushing during Stage ${second.n}, a final conductivity reading of ${second.cond} µS/cm was recorded.`,43,298,9,100,14,false);
-     addPhoto(st,ims,`Meter${second.n}`,second.meter,155,115,285,155,`Photo 4 – Final conductivity meter reading: ${second.cond} µS/cm (Stage ${second.n}).`);
+     heading(st,`Stage ${second.n} Final Conductivity`,43,350);
+     para(st,`After flushing during Stage ${second.n}, a final conductivity reading of ${second.cond} µS/cm was recorded.`,43,326,9,100,14,false);
+     addPhoto(st,ims,`Meter${second.n}`,second.meter,155,140,285,155,`Photo 4 – Final conductivity meter reading: ${second.cond} µS/cm (Stage ${second.n}).`);
    }
    pages.push({stream:st,images:ims});
  }
