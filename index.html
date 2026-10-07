@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#073B78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Asset Labeler">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Asset Photo Labeler</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f5f8;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+.wrap{max-width:720px;margin:auto;padding:18px 14px 45px}
+h1{margin:5px 0 4px;color:#073B78;font-size:28px}
+.sub{margin:0 0 18px;color:#667085;font-size:16px}
+.card{background:#fff;border-radius:15px;padding:18px;margin:13px 0;box-shadow:0 2px 12px rgba(0,0,0,.07)}
+label.field{display:block;font-weight:750;font-size:14px;margin:13px 0 6px}
+input[type=text]{width:100%;padding:14px;border:1px solid #cbd5e1;border-radius:10px;font-size:17px;background:#fff}
+.photo-wrap{position:relative}
+.photo-btn{width:100%;height:58px;border-radius:11px;background:#073B78;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800}
+#photoInput{position:absolute;inset:0;width:100%;height:58px;opacity:0;cursor:pointer}
+#preview{display:none;width:100%;max-height:480px;object-fit:contain;margin-top:14px;border-radius:10px;background:#111}
+#create{width:100%;border:0;border-radius:11px;padding:17px;background:#073B78;color:#fff;font-size:18px;font-weight:800}
+#create:active{transform:scale(.99)}
+#status{display:none;margin-top:12px;padding:12px;border-radius:9px;background:#eef3f9;color:#073B78;white-space:pre-wrap}
+#status.error{background:#fff0f0;color:#a40000}
+#resultCard{display:none}
+#result{display:block;width:100%;border-radius:9px}
+#download{display:block;text-align:center;text-decoration:none;margin-top:12px;padding:15px;border-radius:11px;background:#198754;color:#fff;font-weight:800}
+.small{font-size:13px;color:#667085;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Asset Photo Labeler</h1>
+<p class="sub">Upload a photo, enter the asset information, then create the label.</p>
+
+<div class="card">
+  <div class="photo-wrap">
+    <div class="photo-btn">📷 Choose Photo</div>
+    <input id="photoInput" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+  </div>
+  <img id="preview" alt="Selected photo">
+  <div id="status"></div>
+</div>
+
+<div class="card">
+  <label class="field" for="location">Location</label>
+  <input id="location" type="text" placeholder="Building / area">
+
+  <label class="field" for="model">Model</label>
+  <input id="model" type="text" placeholder="Model">
+
+  <label class="field" for="serial">Serial Number</label>
+  <input id="serial" type="text" placeholder="Serial number">
+
+  <label class="field" for="engineering">Engineering Number</label>
+  <input id="engineering" type="text" placeholder="Engineering number">
+
+  <label class="field" for="size">Size</label>
+  <input id="size" type="text" placeholder='e.g. 2"'>
+</div>
+
+<div class="card">
+  <button id="create" type="button">🏷️ Create Label</button>
+  <div class="small">The finished image will appear below.</div>
+</div>
+
+<div id="resultCard" class="card">
+  <h2 style="margin:0 0 14px;color:#073B78">Finished Image</h2>
+  <img id="result" alt="Finished labeled image">
+  <a id="download" href="#" download="asset-labelled.jpg">⬇️ Download Labeled Image</a>
+</div>
+</div>
+
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+(function(){
+"use strict";
+var photoInput=document.getElementById("photoInput");
+var preview=document.getElementById("preview");
+var status=document.getElementById("status");
+var create=document.getElementById("create");
+var canvas=document.getElementById("canvas");
+var resultCard=document.getElementById("resultCard");
+var result=document.getElementById("result");
+var download=document.getElementById("download");
+var image=null;
+
+function msg(t,error){
+  status.textContent=t;
+  status.style.display="block";
+  status.className=error?"error":"";
+}
+
+photoInput.addEventListener("change",function(){
+  var file=photoInput.files && photoInput.files[0];
+  if(!file)return;
+  msg("Loading photo…",false);
+  var reader=new FileReader();
+  reader.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      image=img;
+      preview.src=reader.result;
+      preview.style.display="block";
+      msg("Photo loaded ✓",false);
+    };
+    img.onerror=function(){
+      image=null;
+      msg("Safari could not decode this image. Try taking a new photo or choose a JPG/PNG.",true);
+    };
+    img.src=reader.result;
+  };
+  reader.onerror=function(){msg("Could not read the selected photo.",true)};
+  reader.readAsDataURL(file);
+});
+
+create.addEventListener("click",function(){
+  try{
+    if(!image){msg("Please choose a photo first.",true);return}
+    create.textContent="Creating…";
+
+    var fields=[
+      ["Location",document.getElementById("location").value.trim()||"—"],
+      ["Model",document.getElementById("model").value.trim()||"—"],
+      ["Serial Number",document.getElementById("serial").value.trim()||"—"],
+      ["Engineering Number",document.getElementById("engineering").value.trim()||"—"],
+      ["Size",document.getElementById("size").value.trim()||"—"]
+    ];
+
+    var w=Math.min(image.naturalWidth,1600);
+    var h=Math.round(image.naturalHeight*w/image.naturalWidth);
+    var row=68, header=96, labelH=header+fields.length*row+10;
+    canvas.width=w;
+    canvas.height=h+14+labelH;
+    var ctx=canvas.getContext("2d");
+    if(!ctx)throw new Error("Canvas is unavailable.");
+
+    ctx.fillStyle="#fff";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(image,0,0,w,h);
+
+    var top=h+14;
+    ctx.fillStyle="#fff";
+    ctx.fillRect(3,top+3,w-6,labelH-6);
+    ctx.strokeStyle="#073B78";
+    ctx.lineWidth=5;
+    ctx.strokeRect(3,top+3,w-6,labelH-6);
+
+    ctx.fillStyle="#073B78";
+    ctx.textAlign="center";
+    ctx.font="bold 32px Arial";
+    ctx.fillText("CID ENTERPRISES VIC",w/2,top+55);
+
+    ctx.strokeStyle="#d5dbe3";
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(12,top+78);ctx.lineTo(w-12,top+78);ctx.stroke();
+
+    var left=Math.round(w*.31);
+    fields.forEach(function(f,i){
+      var y=top+84+i*row;
+      ctx.fillStyle="#073B78";
+      ctx.fillRect(5,y,left-5,row);
+      ctx.fillStyle="#fff";
+      ctx.textAlign="left";
+      ctx.font="bold 23px Arial";
+      ctx.fillText(f[0]+":",17,y+43);
+
+      ctx.fillStyle="#073B78";
+      var size=23;
+      ctx.font="bold "+size+"px Arial";
+      while(ctx.measureText(f[1]).width>w-left-38 && size>13){
+        size--;ctx.font="bold "+size+"px Arial";
+      }
+      ctx.fillText(f[1],left+18,y+43);
+    });
+
+    var out=canvas.toDataURL("image/jpeg",.92);
+    result.src=out;
+    download.href=out;
+    resultCard.style.display="block";
+    resultCard.scrollIntoView({behavior:"smooth",block:"start"});
+    msg("Label created successfully ✓",false);
+  }catch(e){
+    console.error(e);
+    msg("Could not create label: "+(e.message||e),true);
+  }finally{
+    create.textContent="🏷️ Create Label";
+  }
+});
+})();
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("service-worker.js").catch(function(){})}</script>
+</body>
+</html>
