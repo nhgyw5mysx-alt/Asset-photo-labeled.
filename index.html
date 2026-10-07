@@ -7,6 +7,7 @@
 <title>CID Asset Photo Labeler</title>
 <link rel="manifest" href="manifest.webmanifest">
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#edf1f4;color:#102131;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
 .app{max-width:760px;margin:auto;padding:18px 15px 42px}.top{background:#071a2b;color:#fff;padding:22px;border-radius:18px;box-shadow:0 8px 25px #0002}
@@ -24,13 +25,18 @@ input[type=text]{width:100%;padding:13px;border:1px solid #cbd4db;border-radius:
 
 .selector{margin-bottom:17px}.selector label{font-size:14px}
 .duration{background:#e9f1f6;border:1px solid #c8d8e3;border-radius:10px;padding:12px;font-size:16px;font-weight:800;color:#0b466b}#passivationFields{padding-top:2px}
+
+.report-intro{background:#071a2b;color:#fff;border-radius:12px;padding:13px 15px;margin-bottom:15px}
+.report-intro strong{display:block;font-size:17px;letter-spacing:.3px}.report-intro span{display:block;color:#cbd7e1;font-size:12px;margin-top:3px}
+.report-photo{background:#f4f7f9;border:1px solid #d4dde4;border-radius:12px;padding:12px}
+.report-photo input[type=file]{margin-top:3px}.report-ready{font-size:18px;font-weight:800;color:#145d8a;margin-bottom:10px}
 </style>
 </head>
 <body>
 <div class="app">
 <div class="top"><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
 
-<div class="card">
+<div class="card" id="assetPhotoCard">
 <div class="selector">
 <label for="labelType">LABEL TYPE</label>
 <select id="labelType">
@@ -57,23 +63,51 @@ input[type=text]{width:100%;padding:13px;border:1px solid #cbd4db;border-radius:
 </div>
 
 <div id="passivationFields" style="display:none">
+<div class="report-intro">
+<strong>PASSIVATION REPORT</strong>
+<span>Upload the three required photos below.</span>
+</div>
 <div class="grid">
-<div class="field full"><label>SYSTEM</label><input id="system" type="text" placeholder="System"></div>
-<div class="field"><label>LOCATION</label><input id="pLocation" type="text" placeholder="Location"></div>
+<div class="field full"><label>SYSTEM</label><input id="system" type="text" placeholder="e.g. 10 m NaOH Prep Tank"></div>
+<div class="field"><label>LOCATION</label><input id="pLocation" type="text" placeholder="Site / area"></div>
 <div class="field"><label>DATE</label><input id="pDate" type="date"></div>
 <div class="field"><label>START TIME</label><input id="startTime" type="time"></div>
 <div class="field"><label>FINISH TIME</label><input id="finishTime" type="time"></div>
 <div class="field full"><div class="duration" id="duration">PASSIVATION DURATION: —</div></div>
-<div class="field"><label>CHEMICAL</label><input id="chemical" type="text" placeholder="Chemical"></div>
-<div class="field"><label>AMOUNT OF CHEMICAL</label><input id="amount" type="text" placeholder="e.g. 18.9 L"></div>
-<div class="field"><label>FINAL CONDUCTIVITY</label><input id="conductivity" type="number" inputmode="decimal" step="any" min="0" placeholder="e.g. 12.5"></div>
+<div class="field"><label>CHEMICAL</label><input id="chemical" type="text" placeholder="e.g. CiP200"></div>
+<div class="field"><label>AMOUNT OF CHEMICAL</label><input id="amount" type="text" placeholder="e.g. 200 L"></div>
+<div class="field"><label>FINAL CONDUCTIVITY</label><input id="conductivity" type="number" inputmode="decimal" step="any" min="0" placeholder="e.g. 1.211"></div>
 <div class="field"><label>CONDUCTED BY</label><input id="conductedBy" type="text" placeholder="Name"></div>
+
+<div class="field full report-photo">
+<label>1. BEFORE PASSIVATION</label>
+<input id="beforePhoto" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="status" id="beforeStatus">Required</div>
+</div>
+
+<div class="field full report-photo">
+<label>2. AFTER PASSIVATION</label>
+<input id="afterPhoto" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="status" id="afterStatus">Required</div>
+</div>
+
+<div class="field full report-photo">
+<label>3. CONDUCTIVITY METER READING</label>
+<input id="meterPhoto" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
+<div class="status" id="meterStatus">Required</div>
+</div>
 </div>
 </div>
 
 </div>
-<button id="create" class="create" disabled>CREATE LABEL</button>
-<div class="hint">Final image: 1600 × 1400 px</div>
+<button id="create" class="create" disabled>CREATE ASSET LABEL</button>
+<div class="hint">Asset labels: 1600 × 1400 px • Passivation: PDF report</div>
+</div>
+
+
+<div class="card" id="reportOutput" style="display:none">
+<div class="report-ready">PASSIVATION REPORT READY</div>
+<a id="reportDownload" class="download" download="CID-Passivation-Report.pdf">DOWNLOAD PDF REPORT</a>
 </div>
 
 <div class="card" id="outputCard"><img id="result"><a id="download" class="download" download="CID-asset.jpg">DOWNLOAD LABEL</a></div>
@@ -82,9 +116,37 @@ input[type=text]{width:100%;padding:13px;border:1px solid #cbd4db;border-radius:
 
 <script>
 const $=id=>document.getElementById(id);
-let img=null, fileUrl=null, photoDataUrl=null;
+let img=null, fileUrl=null, photoDataUrl=null; let beforeData=null, afterData=null, meterData=null;
 $("choose").onclick=()=> $("file").click();
 
+
+async function readReportPhoto(file){
+ if(!file)return null;
+ let source=file;
+ if((file.type||"").toLowerCase().includes("heic") ||
+    (file.type||"").toLowerCase().includes("heif") ||
+    /\.(heic|heif)$/i.test(file.name)){
+   if(typeof heic2any!=="function") throw new Error("HEIC converter unavailable");
+   const converted=await heic2any({blob:file,toType:"image/jpeg",quality:0.92});
+   source=Array.isArray(converted)?converted[0]:converted;
+ }
+ return await new Promise((resolve,reject)=>{
+   const r=new FileReader();
+   r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(source);
+ });
+}
+async function handleReportPhoto(inputId,statusId,setter){
+ try{
+   const f=$(inputId).files[0];
+   if(!f)return;
+   const data=await readReportPhoto(f);
+   setter(data);
+   $(statusId).textContent="✓ Photo ready";
+   $(statusId).style.color="#145d8a";
+ }catch(e){
+   console.error(e);setter(null);$(statusId).textContent="Could not read this photo.";
+ }
+}
 $("file").onchange=async()=>{
  const f=$("file").files[0]; if(!f)return;
  $("status").textContent="Loading photo…"; $("create").disabled=true;
@@ -151,8 +213,10 @@ function updateLabelType(){
  const p=$("labelType").value==="passivation";
  $("assetFields").style.display=p?"none":"block";
  $("passivationFields").style.display=p?"block":"none";
- $("create").textContent=p?"CREATE PASSIVATION LABEL":"CREATE ASSET LABEL";
- $("outputCard").style.display="none";
+ $("assetPhotoCard").style.display=p?"none":"block";
+ $("create").textContent=p?"CREATE PASSIVATION REPORT":"CREATE ASSET LABEL";
+ $("outputCard").style.display=p?"none":"none";
+ $("reportOutput").style.display="none";
 }
 $("labelType").addEventListener("change", updateLabelType);
 window.addEventListener("pageshow", updateLabelType);
@@ -180,85 +244,154 @@ function durationText(){
  return `${h} hr${h===1?"":"s"} ${min} min`;
 }
 $("startTime").oninput=$("finishTime").oninput=()=>{$("duration").textContent="PASSIVATION DURATION: "+durationText()};
+$("beforePhoto").onchange=()=>handleReportPhoto("beforePhoto","beforeStatus",v=>beforeData=v);
+$("afterPhoto").onchange=()=>handleReportPhoto("afterPhoto","afterStatus",v=>afterData=v);
+$("meterPhoto").onchange=()=>handleReportPhoto("meterPhoto","meterStatus",v=>meterData=v);
+
+
+async function imageDataForPdf(data){
+ if(!data)return null;
+ const im=new Image();
+ await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject;im.src=data});
+ return im;
+}
+async function logoDataForPdf(){
+ const im=new Image();
+ im.src="cid-logo-transparent.png";
+ await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject});
+ const cv=document.createElement("canvas");
+ cv.width=im.naturalWidth;cv.height=im.naturalHeight;
+ cv.getContext("2d").drawImage(im,0,0);
+ return cv.toDataURL("image/png");
+}
+function niceDate(v){
+ if(!v)return "—";
+ const d=new Date(v+"T00:00:00");
+ return d.toLocaleDateString("en-AU",{day:"numeric",month:"long",year:"numeric"});
+}
+function addPdfImage(doc,data,x,y,w,h){
+ return imageDataForPdf(data).then(im=>{
+   const s=Math.min(w/im.naturalWidth,h/im.naturalHeight);
+   const nw=im.naturalWidth*s,nh=im.naturalHeight*s;
+   const fmt=(data||"").startsWith("data:image/png")?"PNG":"JPEG";
+   doc.addImage(data,fmt,x+(w-nw)/2,y+(h-nh)/2,nw,nh);
+ });
+}
+function pdfHeader(doc,title,subtitle,logoData){
+ doc.setFillColor(7,26,43);doc.rect(0,0,210,29,"F");
+ if(logoData)doc.addImage(logoData,"PNG",15,4,34,20);
+ doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(19);
+ doc.text(title,105,12,{align:"center"});
+ doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(191,203,213);
+ doc.text(subtitle,105,20,{align:"center"});
+}
+function pdfTable(doc,rows,y){
+ const x=15,w=180,rh=8;
+ rows.forEach((r,i)=>{
+  doc.setFillColor(i%2?244:233,i%2?246:238,i%2?248:242);doc.rect(x,y+i*rh,w,rh,"F");
+  doc.setDrawColor(195,207,216);doc.rect(x,y+i*rh,w,rh);
+  doc.setTextColor(80,101,116);doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.text(r[0],x+3,y+i*rh+5.3);
+  doc.setTextColor(16,33,49);doc.setFont("helvetica","normal");doc.setFontSize(9.5);doc.text(String(r[1]||"—"),x+50,y+i*rh+5.3);
+ });
+}
+async function createPassivationReport(){
+ if(!beforeData||!afterData||!meterData){
+  $("status").textContent="Please add all 3 photos: before, after and conductivity meter.";
+  return;
+ }
+ const {jsPDF}=window.jspdf;
+ const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+ const logoData=await logoDataForPdf();
+ const system=$("system").value.trim()||"—",location=$("pLocation").value.trim()||"—";
+ const date=$("pDate").value||"—",start=$("startTime").value||"—",finish=$("finishTime").value||"—";
+ const duration=durationText(),chemical=$("chemical").value.trim()||"—";
+ const amount=$("amount").value.trim()||"—",conductivity=$("conductivity").value.trim()||"—";
+ const by=$("conductedBy").value.trim()||"—";
+
+ // Page 1 — summary and pre-passivation
+ pdfHeader(doc,"Passivation Report","CID Enterprises Vic",logoData);
+ doc.setTextColor(20,93,138);doc.setFont("helvetica","bold");doc.setFontSize(17);
+ doc.text("Passivation Report",105,41,{align:"center"});
+ pdfTable(doc,[
+  ["System",system],["Location",location],["Date",niceDate(date)],
+  ["Start time",start],["Finish time",finish],["Run duration",duration],
+  ["Chemical",chemical],["Amount of chemical",amount],
+  ["Final conductivity",conductivity+" µS/cm"],["Conducted by",by]
+ ],50);
+
+ doc.setTextColor(20,93,138);doc.setFont("helvetica","bold");doc.setFontSize(13);
+ doc.text("1. Overview",15,138);
+ doc.setTextColor(35,43,50);doc.setFont("helvetica","normal");doc.setFontSize(9.5);
+ const overview=`Passivation was performed on ${system} at ${location}. Chemical used was ${chemical}, with ${amount} recorded. The passivation run lasted ${duration}. Final flush conductivity was ${conductivity} µS/cm. Work was conducted by ${by}.`;
+ doc.text(doc.splitTextToSize(overview,180),15,146);
+
+ doc.setTextColor(20,93,138);doc.setFont("helvetica","bold");doc.setFontSize(13);
+ doc.text("2. Pre-passivation condition",15,169);
+ await addPdfImage(doc,beforeData,25,176,160,78);
+ doc.setTextColor(70,70,70);doc.setFont("helvetica","italic");doc.setFontSize(8);
+ doc.text("Photo 1 – Pre-passivation condition.",105,260,{align:"center"});
+
+ // Page 2 — post and meter
+ doc.addPage();pdfHeader(doc,"Passivation Report","CID Enterprises Vic",logoData);
+ doc.setTextColor(20,93,138);doc.setFont("helvetica","bold");doc.setFontSize(13);
+ doc.text("3. Post-passivation condition",15,42);
+ await addPdfImage(doc,afterData,25,49,160,83);
+ doc.setTextColor(70,70,70);doc.setFont("helvetica","italic");doc.setFontSize(8);
+ doc.text("Photo 2 – Post-passivation condition.",105,137,{align:"center"});
+
+ doc.setTextColor(20,93,138);doc.setFont("helvetica","bold");doc.setFontSize(13);
+ doc.text("4. Final conductivity reading",15,157);
+ doc.setTextColor(35,43,50);doc.setFont("helvetica","normal");doc.setFontSize(9.5);
+ doc.text(doc.splitTextToSize(`Final flush conductivity recorded as ${conductivity} µS/cm.`,180),15,166);
+ await addPdfImage(doc,meterData,25,177,160,82);
+ doc.setTextColor(70,70,70);doc.setFont("helvetica","italic");doc.setFontSize(8);
+ doc.text(`Photo 3 – Conductivity meter reading: ${conductivity} µS/cm.`,105,263,{align:"center"});
+
+ doc.setTextColor(20,93,138);doc.setFont("helvetica","bold");doc.setFontSize(13);
+ doc.text("5. Conclusion",15,279);
+ doc.setTextColor(35,43,50);doc.setFont("helvetica","normal");doc.setFontSize(9.5);
+ const conclusion=`Passivation of ${system} was completed. The recorded run duration was ${duration}, with a final flush conductivity of ${conductivity} µS/cm. The work was conducted by ${by}.`;
+ doc.text(doc.splitTextToSize(conclusion,180),15,287);
+
+ for(let p=1;p<=doc.getNumberOfPages();p++){
+  doc.setPage(p);doc.setDrawColor(20,93,138);doc.line(15,288,195,288);
+  doc.setTextColor(110,120,128);doc.setFont("helvetica","normal");doc.setFontSize(7);
+  doc.text("CID Enterprises Vic | Passivation Report",15,293);
+  doc.text(`Page ${p} of ${doc.getNumberOfPages()}`,195,293,{align:"right"});
+ }
+ const blob=doc.output("blob");
+ const url=URL.createObjectURL(blob);
+ $("reportDownload").href=url;
+ $("reportDownload").download="CID-Passivation-Report.pdf";
+ $("reportOutput").style.display="block";
+ $("reportOutput").scrollIntoView({behavior:"smooth"});
+ $("status").textContent="Passivation report created.";
+}
 
 $("create").onclick=async()=>{
+ if($("labelType").value==="passivation"){
+  $("create").disabled=true;$("status").textContent="Creating passivation report…";
+  try{await createPassivationReport()}catch(e){console.error(e);$("status").textContent="Could not create the report."}
+  $("create").disabled=false;return;
+ }
  if(!img?.naturalWidth)return;
- $("create").disabled=true;$("status").textContent="Creating label with photo…";
+ $("create").disabled=true;$("status").textContent="Creating label…";
  try{
-  const c=$("canvas"),x=c.getContext("2d"),W=1600,H=1400,photoH=900,panel=920;
-  c.width=W;c.height=H;
-  x.fillStyle="#fff";x.fillRect(0,0,W,H);
-
-  // Fixed photo window: 1600 x 900, cropped without distortion.
   const photo=await getPhotoForCanvas();
-  x.save();
-  x.beginPath();
-  x.rect(0,0,W,photoH);
-  x.clip();
-  cover(x,photo,0,0,W,photoH);
-  x.restore();
-  x.fillStyle="#071a2b";x.fillRect(0,900,W,20);
-
-  // Branded information panel.
-  x.fillStyle="#071a2b";x.fillRect(0,panel,W,450);
-
-  const logo=await getLogo();
-  const maxW=285,maxH=100,s=Math.min(maxW/logo.naturalWidth,maxH/logo.naturalHeight);
-  const lw=logo.naturalWidth*s,lh=logo.naturalHeight*s;
-  x.drawImage(logo,55,panel+25,lw,lh);
-
-  const pass=$("labelType").value==="passivation";
-  x.fillStyle="#fff";x.textAlign="right";x.textBaseline="alphabetic";
-  x.font="800 38px Arial,sans-serif";
-  x.fillText(pass?"PASSIVATION RECORD":"ASSET IDENTIFICATION",1545,panel+65);
-  x.font="500 21px Arial,sans-serif";x.fillStyle="#bfcbd5";
-  x.fillText(pass?"PROCESS RECORD / SITE DOCUMENTATION":"EQUIPMENT / ASSET REGISTER",1545,panel+101);
-
-  const rows=pass?[
-   ["SYSTEM",$("system").value.trim()||"—"],
-   ["LOCATION",$("pLocation").value.trim()||"—"],
-   ["DATE",$("pDate").value||"—"],
-   ["START TIME",$("startTime").value||"—"],
-   ["FINISH TIME",$("finishTime").value||"—"],
-   ["DURATION",durationText()],
-   ["CHEMICAL",$("chemical").value.trim()||"—"],
-   ["AMOUNT OF CHEMICAL",$("amount").value.trim()||"—"],
-   ["FINAL CONDUCTIVITY",($("conductivity").value.trim()||"—")+" µS/cm"],
-   ["CONDUCTED BY",$("conductedBy").value.trim()||"—"]
-  ]:[
-   ["LOCATION",$("location").value.trim()||"—"],
-   ["MODEL",$("model").value.trim()||"—"],
-   ["SERIAL NUMBER",$("serial").value.trim()||"—"],
-   ["ENGINEERING NUMBER",$("engineering").value.trim()||"—"],
-   ["SIZE",$("size").value.trim()||"—"]
-  ];
-
-  // Information panel is intentionally larger for Passivation.
-  const rowH=pass?31:58;
-  const startY=pass?1030:1050;
-  const labelW=360;
-  rows.forEach((r,i)=>{
-    const y=startY+i*rowH;
-    x.fillStyle=i%2===0?"#e9eef2":"#f4f6f8";
-    x.fillRect(45,y,W-90,rowH-3);
-    x.fillStyle="#526574";x.textAlign="left";x.textBaseline="middle";
-    x.font=pass?"800 16px Arial,sans-serif":"800 20px Arial,sans-serif";
-    x.fillText(r[0],70,y+(rowH-3)/2);
-    x.fillStyle="#102131";
-    x.font=(r[0]==="SERIAL NUMBER"&&!pass)?"800 27px Arial,sans-serif":(pass?"650 17px Arial,sans-serif":"650 25px Arial,sans-serif");
-    x.fillText(r[1],70+labelW,y+(rowH-3)/2);
-  });
-
+  const c=$("canvas"),x=c.getContext("2d"),W=1600,H=1400,photoH=900,panel=920;
+  c.width=W;c.height=H;x.fillStyle="#fff";x.fillRect(0,0,W,H);
+  x.save();x.beginPath();x.rect(0,0,W,photoH);x.clip();cover(x,photo,0,0,W,photoH);x.restore();
+  x.fillStyle="#071a2b";x.fillRect(0,900,W,20);x.fillStyle="#071a2b";x.fillRect(0,panel,W,H-panel);
+  const logo=await getLogo(),maxW=285,maxH=100,s=Math.min(maxW/logo.naturalWidth,maxH/logo.naturalHeight);
+  x.drawImage(logo,55,panel+25,logo.naturalWidth*s,logo.naturalHeight*s);
+  x.fillStyle="#fff";x.textAlign="right";x.textBaseline="alphabetic";x.font="800 38px Arial,sans-serif";x.fillText("ASSET IDENTIFICATION",1545,panel+65);
+  x.font="500 21px Arial,sans-serif";x.fillStyle="#bfcbd5";x.fillText("EQUIPMENT / ASSET REGISTER",1545,panel+101);
+  const rows=[["LOCATION",$("location").value.trim()||"—"],["MODEL",$("model").value.trim()||"—"],["SERIAL NUMBER",$("serial").value.trim()||"—"],["ENGINEERING NUMBER",$("engineering").value.trim()||"—"],["SIZE",$("size").value.trim()||"—"]];
+  rows.forEach((r,i)=>{const y=1050+i*58;x.fillStyle=i%2===0?"#e9eef2":"#f4f6f8";x.fillRect(45,y,W-90,55);x.fillStyle="#526574";x.textAlign="left";x.textBaseline="middle";x.font="800 20px Arial,sans-serif";x.fillText(r[0],70,y+27);x.fillStyle="#102131";x.font=r[0]==="SERIAL NUMBER"?"800 27px Arial,sans-serif":"650 25px Arial,sans-serif";x.fillText(r[1],430,y+27)});
   x.fillStyle="#145d8a";x.fillRect(0,1370,W,30);
-  const data=c.toDataURL("image/jpeg",.93);
-  $("result").src=data;$("download").href=data;
-  $("outputCard").style.display="block";
-  $("status").textContent=(pass?"Passivation":"Asset")+" label created — 1600 × 1400 px.";
-  $("outputCard").scrollIntoView({behavior:"smooth"});
- }catch(e){
-  console.error(e);
-  $("status").textContent="Could not create label. Please select the photo again and retry.";
- }finally{$("create").disabled=false}
+  const data=c.toDataURL("image/jpeg",.93);$("result").src=data;$("download").href=data;$("outputCard").style.display="block";$("status").textContent="Asset label created — 1600 × 1400 px.";$("outputCard").scrollIntoView({behavior:"smooth"});
+ }catch(e){console.error(e);$("status").textContent="Could not create label. Please select the photo again."}
+ $("create").disabled=false;
 };
 if($("labelType")) updateLabelType();
 </script>
