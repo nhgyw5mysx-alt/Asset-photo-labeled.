@@ -1,4 +1,4 @@
-const CACHE = 'cid-asset-labeler-v24';
+const CACHE = 'cid-asset-labeler-v25';
 const ASSETS = ['./','./index.html','./manifest.webmanifest','./cid-logo-transparent.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

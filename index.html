@@ -33,7 +33,7 @@ input[type=text],input[type=number],input[type=time],input[type=date],textarea{w
 </head>
 <body>
 <div class="app">
-<div class="top"><span class="version-badge">VERSION V24</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
+<div class="top"><span class="version-badge">VERSION V25</span><h1>CID Asset Photo Labeler</h1><p>Professional equipment identification & asset register photos</p></div>
 
 <div class="card" id="assetPhotoCard">
 <div class="selector">
@@ -298,7 +298,7 @@ $("meterPhoto1").onchange=()=>handleReportPhoto("meterPhoto1","meterStatus1",v=>
 $("meterPhoto2").onchange=()=>handleReportPhoto("meterPhoto2","meterStatus2",v=>meterData2=v);
 
 // Small self-contained PDF writer. No external PDF library is required.
-// V24: refined passivation report layout with conditional stages and image-specific comments.
+// V25: simplified report structure; conclusion belongs in final comments.
 function pdfEscape(s){
  s=String(s??"—").replace(/[–—]/g,"-").replace(/[“”]/g,'"').replace(/[’]/g,"'");
  // Use the PDF/WinAnsi octal escape for the micro sign.
@@ -404,7 +404,7 @@ function reportPageBase(stream,title,subtitle,imageObjs,logoData){
 }
 function reportTable(stream,rows,yTop){
  const x=43,w=510,rh=23,labelW=135;
- rows.forEach((r,i)=>{const y=yTop-i*rh-rh;pdfRect(stream,x,y,w,rh,i%2?"0.957 0.969 0.976":"0.914 0.933 0.949");pdfText(stream,r[0],x+10,y+8,8,true);pdfText(stream,r[1],x+labelW,y+8,9,false);pdfLine(stream,x,y,x+w,y);});
+ rows.forEach((r,i)=>{const y=yTop-i*rh-rh;pdfRect(stream,x,y,w,rh,i%2?"0.957 0.969 0.976":"0.914 0.933 0.949");pdfText(stream,r[0],x+10,y+8,8,true);pdfText(stream,r[1],x+labelW,y+8,9,true);pdfLine(stream,x,y,x+w,y);});
 }
 function wrapText(text,maxChars=105){
  const clean=String(text||"—").replace(/\r/g,"");
@@ -469,85 +469,116 @@ function reportTableBlue(stream,rows,yTop){
 }
 
 async function createPassivationReport(){
- // A stage is considered present only when actual stage information is entered.
- // Image comments are deliberately NOT used to decide whether a stage exists.
+ // A stage is present only when real stage information has been entered.
  const stage1HasData=["chemical1","amount1","start1","finish1","conductivity1"].some(id=>$(id).value.trim());
  const stage2HasData=["chemical2","amount2","start2","finish2","conductivity2"].some(id=>$(id).value.trim());
  if(!stage1HasData&&!stage2HasData){$("status").textContent="Enter information for at least one passivation stage.";return;}
  if(!beforeData||!afterData){$("status").textContent="Please add the Before Passivation and After Passivation photos.";return;}
  if(stage1HasData&&!meterData){$("status").textContent="Please add the Stage 1 conductivity meter photo.";return;}
  if(stage2HasData&&!meterData2){$("status").textContent="Please add the Stage 2 conductivity meter photo.";return;}
+
  const logoImg=await getLogo(),logoData=logoToPdfJpeg(logoImg);
  const system=$("system").value.trim()||"—",location=$("pLocation").value.trim()||"—",date=formatReportDate($("pDate").value),by=$("conductedBy").value.trim()||"—";
  const c1=$("chemical1").value.trim()||"—",a1=$("amount1").value.trim()||"—",c2=$("chemical2").value.trim()||"—",a2=$("amount2").value.trim()||"—";
  const s1=$("start1").value||"—",f1=$("finish1").value||"—",s2=$("start2").value||"—",f2=$("finish2").value||"—";
  const m1=minutesBetween($("start1").value,$("finish1").value),m2=minutesBetween($("start2").value,$("finish2").value);
  const cond1=$("conductivity1").value.trim()||"—",cond2=$("conductivity2").value.trim()||"—";
- const preComments=$("preComments").value.trim(),postComments=$("postComments").value.trim(),finalComments=$("finalComments").value.trim()||"No final comments recorded.";
+ const preComments=$("preComments").value.trim()||"No comments recorded.";
+ const postComments=$("postComments").value.trim()||"No comments recorded.";
+ const finalComments=$("finalComments").value.trim()||"No final comments recorded.";
  const stages=[];
  if(stage1HasData)stages.push({n:1,c:c1,a:a1,s:s1,f:f1,m:m1??0,cond:cond1,meter:meterData});
  if(stage2HasData)stages.push({n:2,c:c2,a:a2,s:s2,f:f2,m:m2??0,cond:cond2,meter:meterData2});
  const total=stages.reduce((sum,s)=>sum+s.m,0),pages=[];
  const addFooter=(pg,i)=>{pdfLineBlue(pg.stream,43,38,552,38);pdfText(pg.stream,"CID Enterprises Vic | Passivation Report",43,24,7,false);pdfText(pg.stream,`Page ${i+1} of 4`,475,24,7,false)};
  const heading=(stream,text,y)=>pdfTextBlue(stream,text,43,y,13,true);
- const para=(stream,text,x,y,size=9,max=105,lh=13)=>wrapText(text,max).slice(0,8).forEach((t,i)=>pdfText(stream,t,x,y-i*lh,size,false));
- const addHeader=(st,ims)=>{pdfRect(st,0,0,595.28,841.89,"1 1 1");pdfLineBlue(st,43,820,552,820);addPdfImage(st,"Logo",logoData,205,754,185,60,ims);pdfTextBlue(st,"Passivation Report",218,708,17,true);pdfLineBlue(st,43,694,552,694);};
+ const para=(stream,text,x,y,size=9,max=105,lh=13,bold=false)=>wrapText(text,max).slice(0,9).forEach((t,i)=>pdfText(stream,t,x,y-i*lh,size,bold));
+ const addHeader=(st,ims)=>{
+   pdfRect(st,0,0,595.28,841.89,"1 1 1");
+   pdfLineBlue(st,43,820,552,820);
+   addPdfImage(st,"Logo",logoData,205,754,185,60,ims);
+   // Centered title.
+   pdfTextBlue(st,"Passivation Report",218,708,17,true);
+   pdfLineBlue(st,43,694,552,694);
+ };
  const addPhoto=(st,ims,name,data,x,y,w,h,caption)=>{addPdfImage(st,name,data,x,y,w,h,ims);pdfTextItalic(st,caption,x,y-16,8);};
  const labelValue=(stream,label,value,x,y,size=9,maxChars=82)=>{
    pdfText(stream,label,x,y,size,true);
-   const labelWidth=Math.max(72,label.length*4.7+6);
+   const labelWidth=Math.max(92,label.length*4.9+8);
    const lines=wrapText(String(value??"—"),maxChars);
-   // Both the label and the entered result are bold for quick on-site reading.
+   // Both labels and entered data are bold for quick on-site reading.
    pdfText(stream,lines[0],x+labelWidth,y,size,true);
    for(let i=1;i<lines.length;i++) pdfText(stream,lines[i],x+labelWidth,y-i*13,size,true);
    return y-Math.max(1,lines.length)*15;
  };
  const stageBlock=(st,stage,y)=>{
    heading(st,`${stage.seq}. ${system} — Stage ${stage.n}`,43,y);
-   // Keep stage headings well clear of the footer and keep every result on a clean line.
    let yy=y-27;
    yy=labelValue(st,"Run duration:",formatMinutes(stage.m),43,yy);
    yy=labelValue(st,"Chemical used:",stage.c,43,yy);
    yy=labelValue(st,"Chemical amount:",stage.a,43,yy);
    yy=labelValue(st,"Start time:",stage.s,43,yy);
    yy=labelValue(st,"Finish time:",stage.f,43,yy);
-   yy=labelValue(st,"Final conductivity:",`${stage.cond} µS/cm`,43,yy);
-   return yy-10;
+   // Conductivity is deliberately omitted here so it is not duplicated in Section 3.
+   return yy-6;
  };
  const overview=stages.length===2
   ? `Passivation was performed on ${system} at ${location}. Work was carried out by ${by}. The passivation consisted of two chemical stages. Stage 1 used ${c1} (${a1}) for ${formatMinutes(m1)}. Stage 2 used ${c2} (${a2}) for ${formatMinutes(m2)}.`
   : `Passivation was performed on ${system} at ${location}. Work was carried out by ${by}. The passivation consisted of one chemical stage. Stage ${stages[0].n} used ${stages[0].c} (${stages[0].a}) for ${formatMinutes(stages[0].m)}.`;
 
  // PAGE 1 — report details, ONE overview, then only the stages that contain information.
- {const st=[],ims=[];addHeader(st,ims);reportTableBlue(st,[["Systems",system],["Location",location],["Dates",date],["Report Type","Passivation Report"],["Conducted by",by]],682);heading(st,"1. Overview",43,535);para(st,overview,43,513,8.8,105,13);
-   let y=425;
-   stages.forEach((stage,idx)=>{stage.seq=idx+2; y=stageBlock(st,stage,y); if(idx<stages.length-1) y-=18;});
-   pages.push({stream:st,images:ims});}
+ {
+   const st=[],ims=[];addHeader(st,ims);
+   reportTable(st,[["Systems",system],["Location",location],["Dates",date],["Report Type","Passivation Report"],["Conducted by",by]],682);
+   heading(st,"1. Overview",43,535);para(st,overview,43,513,8.8,105,13,false);
+   let y=405;
+   stages.forEach((stage,idx)=>{stage.seq=idx+2;y=stageBlock(st,stage,y);if(idx<stages.length-1)y-=20;});
+   pages.push({stream:st,images:ims});
+ }
 
- // PAGE 2 — only the overall pre/post condition images, with a separate comment for each image.
- {const st=[],ims=[];addHeader(st,ims);heading(st,"2. Passivation condition",43,675);
-   addPhoto(st,ims,"Before",beforeData,43,435,245,190,"Photo 1 – Pre-passivation condition.");
-   addPhoto(st,ims,"After",afterData,307,435,245,190,"Photo 2 – Post-passivation condition.");
-   heading(st,"Pre Passivation Comments:",43,365);para(st,preComments||"No comments recorded.",43,343,9,100,14);
-   heading(st,"Post Passivation Comments:",43,275);para(st,postComments||"No comments recorded.",43,253,9,100,14);
-   pages.push({stream:st,images:ims});}
+ // PAGE 2 — overall pre/post observations. No stage-specific comments.
+ {
+   const st=[],ims=[];addHeader(st,ims);heading(st,"2. Pre and Post Observations",43,675);
+   addPhoto(st,ims,"Before",beforeData,43,445,245,185,"Photo 1 – Pre-passivation condition.");
+   addPhoto(st,ims,"After",afterData,307,445,245,185,"Photo 2 – Post-passivation condition.");
+   heading(st,"Pre Passivation Comments:",43,365);para(st,preComments,43,343,9,100,14,false);
+   heading(st,"Post Passivation Comments:",43,275);para(st,postComments,43,253,9,100,14,false);
+   pages.push({stream:st,images:ims});
+ }
 
- // PAGE 3 — conductivity meter evidence only for the stages actually used.
- {const st=[],ims=[];addHeader(st,ims);heading(st,"3. Final conductivity readings",43,675);
+ // PAGE 3 — conductivity meter evidence only. No passivation runtimes/times here.
+ {
+   const st=[],ims=[];addHeader(st,ims);heading(st,"3. Final Conductivity Readings",43,675);
    if(stages.length===1){
-     const stage=stages[0];heading(st,`Stage ${stage.n} final conductivity`,43,635);para(st,`Final flush conductivity recorded as ${stage.cond} µS/cm. Stage ${stage.n} started at ${stage.s} and finished at ${stage.f}, for a total duration of ${formatMinutes(stage.m)}.`,43,613,9,100,14);addPhoto(st,ims,`Meter${stage.n}`,stage.meter,155,385,285,180,`Photo 3 – Conductivity meter reading: Final flush ${stage.cond} µS/cm (Stage ${stage.n}).`);
+     const stage=stages[0];
+     heading(st,`Stage ${stage.n} Final Conductivity`,43,635);
+     para(st,`After flushing during Stage ${stage.n}, a final conductivity reading of ${stage.cond} µS/cm was recorded.`,43,613,9,100,14,true);
+     addPhoto(st,ims,`Meter${stage.n}`,stage.meter,155,385,285,180,`Photo 3 – Final conductivity meter reading: ${stage.cond} µS/cm (Stage ${stage.n}).`);
    }else{
      const first=stages[0],second=stages[1];
-     heading(st,`Stage ${first.n} final conductivity`,43,635);para(st,`Final flush conductivity recorded as ${first.cond} µS/cm. Stage ${first.n} started at ${first.s} and finished at ${first.f}, for a total duration of ${formatMinutes(first.m)}.`,43,613,9,100,14);addPhoto(st,ims,`Meter${first.n}`,first.meter,155,425,285,155,`Photo 3 – Conductivity meter reading: Final flush ${first.cond} µS/cm (Stage ${first.n}).`);
-     heading(st,`Stage ${second.n} final conductivity`,43,335);para(st,`Final flush conductivity recorded as ${second.cond} µS/cm. Stage ${second.n} started at ${second.s} and finished at ${second.f}, for a total duration of ${formatMinutes(second.m)}.`,43,313,9,100,14);addPhoto(st,ims,`Meter${second.n}`,second.meter,155,125,285,155,`Photo 4 – Conductivity meter reading: Final flush ${second.cond} µS/cm (Stage ${second.n}).`);
+     heading(st,`Stage ${first.n} Final Conductivity`,43,635);
+     para(st,`After flushing during Stage ${first.n}, a final conductivity reading of ${first.cond} µS/cm was recorded.`,43,613,9,100,14,true);
+     addPhoto(st,ims,`Meter${first.n}`,first.meter,155,430,285,155,`Photo 3 – Final conductivity meter reading: ${first.cond} µS/cm (Stage ${first.n}).`);
+     heading(st,`Stage ${second.n} Final Conductivity`,43,330);
+     para(st,`After flushing during Stage ${second.n}, a final conductivity reading of ${second.cond} µS/cm was recorded.`,43,308,9,100,14,true);
+     addPhoto(st,ims,`Meter${second.n}`,second.meter,155,125,285,155,`Photo 4 – Final conductivity meter reading: ${second.cond} µS/cm (Stage ${second.n}).`);
    }
-   pages.push({stream:st,images:ims});}
+   pages.push({stream:st,images:ims});
+ }
 
- // PAGE 4 — conclusion and final report comments. No duplicate overview.
- {const st=[],ims=[];addHeader(st,ims);heading(st,"4. Conclusion",43,675);const conduct=stages.length===2?`Final flush conductivity values were ${cond1} µS/cm (Stage 1) and ${cond2} µS/cm (Stage 2).`:`Final flush conductivity was ${stages[0].cond} µS/cm (Stage ${stages[0].n}).`;const stageWord=stages.length===2?"two stages":"one stage";para(st,`Passivation of ${system} was completed in ${stageWord}. Total duration was ${formatMinutes(total)}. ${conduct} Work was performed by ${by}.`,43,653,9,100,13);heading(st,"5. Final report comments",43,560);pdfRect(st,43,390,510,115,"0.965 0.965 0.965");para(st,finalComments,58,475,9,92,14);pdfTextBlue(st,"Passivation completed satisfactorily.",43,330,12,true);pdfText(st,"Report prepared by CID Enterprises Vic",43,292,9);pdfText(st,`Passivation conducted by: ${by}`,43,275,9);pdfText(st,`Date: ${date}`,43,258,9);pages.push({stream:st,images:ims});}
- pages.forEach((pg,i)=>addFooter(pg,i));const blob=buildPdf(pages),url=URL.createObjectURL(blob);window.__cidReportUrl=url;window.__cidReportBlob=blob;$('reportOutput').style.display='block';$('reportOutput').scrollIntoView({behavior:'smooth'});$('status').textContent=`Passivation report created with ${2+stages.length} evidence photos.`;
+ // PAGE 4 — final report comments only. The user can provide the conclusion here.
+ {
+   const st=[],ims=[];addHeader(st,ims);heading(st,"4. Final Report Comments",43,675);
+   pdfRect(st,43,445,510,155,"0.965 0.965 0.965");
+   para(st,finalComments,58,575,9,92,14,false);
+   pdfText(st,"Report prepared by CID Enterprises Vic",43,330,9,false);
+   pdfText(st,`Passivation conducted by: ${by}`,43,313,9,false);
+   pdfText(st,`Date: ${date}`,43,296,9,false);
+   pages.push({stream:st,images:ims});
+ }
+ pages.forEach((pg,i)=>addFooter(pg,i));
+ const blob=buildPdf(pages),url=URL.createObjectURL(blob);window.__cidReportUrl=url;window.__cidReportBlob=blob;$('reportOutput').style.display='block';$('reportOutput').scrollIntoView({behavior:'smooth'});$('status').textContent=`Passivation report created with ${2+stages.length} evidence photos.`;
 }
-
 async function saveOrShareReport(){
  const blob=window.__cidReportBlob;
  if(!blob){$("status").textContent="Create the report first.";return;}
