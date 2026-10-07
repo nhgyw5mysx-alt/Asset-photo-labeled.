@@ -17,9 +17,9 @@ h1{margin:0;font-size:26px;letter-spacing:.2px}.top p{margin:6px 0 0;color:#cbd7
 input[type=file]{width:100%;margin-top:10px}.preview{display:none;width:100%;max-height:360px;object-fit:contain;margin-top:14px;border-radius:10px;background:#111}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.full{grid-column:1/-1}.field{margin-top:4px}
 label{display:block;font-size:13px;font-weight:800;color:#445665;margin-bottom:6px}
-input[type=text],input[type=number],input[type=time],input[type=date]{width:100%;padding:13px;border:1px solid #cbd4db;border-radius:10px;font-size:17px;background:#fff;color:#102131}.input-unit{display:flex;align-items:center;gap:8px}.input-unit input{flex:1}.input-unit span{font-size:16px;font-weight:800;color:#445665;white-space:nowrap}
+input[type=text],input[type=number],input[type=time],input[type=date],textarea{width:100%;padding:13px;border:1px solid #cbd4db;border-radius:10px;font-size:17px;background:#fff;color:#102131}textarea{resize:vertical;min-height:95px;font-family:inherit;line-height:1.4}.input-unit{display:flex;align-items:center;gap:8px}.input-unit input{flex:1}.input-unit span{font-size:16px;font-weight:800;color:#445665;white-space:nowrap}
 .hint,.status{font-size:12px;color:#637381;margin-top:9px;min-height:17px}#outputCard{display:none}#result{width:100%;display:block;border-radius:12px}
-.download{display:block;text-align:center;text-decoration:none;background:#071a2b;color:#fff;margin-top:12px}
+.download{display:block;text-align:center;text-decoration:none;background:#071a2b;color:#fff;margin-top:12px}.secondary{width:100%;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:800;background:#e8eef2;color:#102131;margin-top:10px}.report-frame{width:100%;height:650px;border:1px solid #cbd4db;border-radius:12px;margin-top:12px;background:#f4f7f9}
 @media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
 
 .selector{margin-bottom:17px}.selector label{font-size:14px}
@@ -90,6 +90,8 @@ input[type=text],input[type=number],input[type=time],input[type=date]{width:100%
 <div class="field full"><div class="duration" id="totalDuration">TOTAL PASSIVATION DURATION: —</div></div>
 
 <div class="field full"><div class="duration" id="conductivitySummary">FINAL STAGE CONDUCTIVITY: — µS/cm</div></div>
+<div class="field full"><label>STAGE 1 COMMENTS</label><textarea id="comments1" rows="4" placeholder="Comments, observations, circulation notes, issues or actions taken…"></textarea></div>
+<div class="field full"><label>STAGE 2 COMMENTS</label><textarea id="comments2" rows="4" placeholder="Comments, observations, circulation notes, issues or actions taken…"></textarea></div>
 
 <div class="field full report-photo">
 <label>1. BEFORE PASSIVATION</label>
@@ -106,18 +108,21 @@ input[type=text],input[type=number],input[type=time],input[type=date]{width:100%
 <input id="meterPhoto" type="file" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp">
 <div class="status" id="meterStatus">Required</div>
 </div>
+<div class="field full"><label>FINAL REPORT COMMENTS</label><textarea id="finalComments" rows="5" placeholder="Overall comments, conclusion, deviations, recommendations or additional notes…"></textarea></div>
 </div>
 </div>
 
 </div>
-<button id="create" class="create" disabled>CREATE ASSET LABEL</button>
+<button id="create" class="create" type="button" disabled>CREATE ASSET LABEL</button>
 <div class="hint">Asset labels: 1600 × 1400 px • Passivation: two-stage PDF report</div>
 </div>
 
 
 <div class="card" id="reportOutput" style="display:none">
 <div class="report-ready">PASSIVATION REPORT READY</div>
-<a id="reportDownload" class="download" download="CID-Passivation-Report.pdf">DOWNLOAD PDF REPORT</a>
+<div class="status" id="reportFileStatus">PDF created successfully.</div>
+<button id="reportDownload" class="download" type="button">DOWNLOAD PDF REPORT</button>
+<button id="shareReport" class="secondary" type="button">SHARE / SAVE PDF</button>
 </div>
 
 <div class="card" id="outputCard"><img id="result"><a id="download" class="download" download="CID-asset.jpg">DOWNLOAD LABEL</a></div>
@@ -406,6 +411,27 @@ function reportTable(stream,rows,yTop){
  const x=43,w=510,rh=23,labelW=135;
  rows.forEach((r,i)=>{const y=yTop-i*rh-rh;pdfRect(stream,x,y,w,rh,i%2?"0.957 0.969 0.976":"0.914 0.933 0.949");pdfText(stream,r[0],x+10,y+8,8,true);pdfText(stream,r[1],x+labelW,y+8,9,false);pdfLine(stream,x,y,x+w,y);});
 }
+function wrapText(text,maxChars=105){
+ const clean=String(text||"—").replace(/\r/g,"");
+ const lines=[];
+ clean.split("\n").forEach(part=>{
+  if(!part){lines.push("");return;}
+  let rest=part.trim();
+  while(rest.length>maxChars){
+   let cut=rest.lastIndexOf(" ",maxChars);
+   if(cut<1)cut=maxChars;
+   lines.push(rest.slice(0,cut).trim());rest=rest.slice(cut).trim();
+  }
+  if(rest)lines.push(rest);
+ });
+ return lines.length?lines:["—"];
+}
+function addCommentBlock(stream,title,text,y){
+ pdfText(stream,title,43,y,11,true);
+ const lines=wrapText(text,100);
+ lines.slice(0,5).forEach((line,i)=>pdfText(stream,line,43,y-18-i*12,8.5,false));
+ return y-18-Math.min(lines.length,5)*12;
+}
 
 async function createPassivationReport(){
  if(!beforeData||!afterData||!meterData){
@@ -419,38 +445,53 @@ async function createPassivationReport(){
  const s1=$("start1").value||"—",f1=$("finish1").value||"—",s2=$("start2").value||"—",f2=$("finish2").value||"—";
  const m1=minutesBetween($("start1").value,$("finish1").value),m2=minutesBetween($("start2").value,$("finish2").value);
  const total=(m1??0)+(m2??0),cond1=$("conductivity1").value.trim()||"—",cond2=$("conductivity2").value.trim()||"—";
+ const comments1=$("comments1").value.trim()||"No comments recorded.";
+ const comments2=$("comments2").value.trim()||"No comments recorded.";
+ const finalComments=$("finalComments").value.trim()||"No final comments recorded.";
 
+ // PAGE 1 — report details and pre-passivation photo
  const p1=[],ims1=[];reportPageBase(p1,"PASSIVATION REPORT","CID ENTERPRISES VIC");
  pdfText(p1,"Passivation Report",43,735,17,true);
  reportTable(p1,[
   ["System",system],["Location",location],["Date",date],["Conducted by",by],
   ["Stage 1 chemical",c1],["Stage 1 amount",a1],["Stage 1 start / finish",`${s1} - ${f1}`],["Stage 1 duration",formatMinutes(m1)],
+  ["Stage 1 final conductivity",cond1+" µS/cm"],
   ["Stage 2 chemical",c2],["Stage 2 amount",a2],["Stage 2 start / finish",`${s2} - ${f2}`],["Stage 2 duration",formatMinutes(m2)],
-  ["Stage 1 final conductivity",cond1+" µS/cm"],["Stage 2 final conductivity",cond2+" µS/cm"],["Total duration",formatMinutes(total)]
+  ["Stage 2 final conductivity",cond2+" µS/cm"],["Total duration",formatMinutes(total)]
  ],715);
- pdfText(p1,"1. Overview",43,390,13,true);
- const overview=`Two-stage passivation was performed on ${system} at ${location}. Stage 1 used ${c1} (${a1}) for ${formatMinutes(m1)}. Stage 2 used ${c2} (${a2}) for ${formatMinutes(m2)}. Total passivation duration was ${formatMinutes(total)}. Stage 1 final conductivity was ${cond1} µS/cm and Stage 2 final conductivity was ${cond2} µS/cm.`;
- const ol=overview.match(/.{1,105}(?:\s|$)/g)||[overview];
- ol.slice(0,4).forEach((t,i)=>pdfText(p1,t.trim(),43,368-i*13,8.5,false));
- pdfText(p1,"2. Pre-passivation condition",43,305,13,true);
- addPdfImage(p1,"/Im1",beforeData,75,75,445,205,ims1);
- p1.push("0.32 0.36 0.39 rg");
- pdfText(p1,"Photo 1 - Pre-passivation condition.",220,62,8,false);
- pages=[{stream:p1,images:ims1}];
+ pdfText(p1,"1. Overview",43,360,13,true);
+ const overview=`Two-stage passivation was performed on ${system} at ${location}. Stage 1 used ${c1} (${a1}) for ${formatMinutes(m1)}. Stage 2 used ${c2} (${a2}) for ${formatMinutes(m2)}. Total passivation duration was ${formatMinutes(total)}.`;
+ wrapText(overview,105).slice(0,4).forEach((t,i)=>pdfText(p1,t,43,338-i*13,8.5,false));
+ pdfText(p1,"2. Pre-passivation condition",43,270,13,true);
+ addPdfImage(p1,"/Im1",beforeData,75,70,445,175,ims1);
+ pdfText(p1,"Photo 1 - Pre-passivation condition.",220,56,8,false);
+ const pages=[{stream:p1,images:ims1}];
 
+ // PAGE 2 — post photo, conductivity and phase comments
  const p2=[],ims2=[];reportPageBase(p2,"PASSIVATION REPORT","CID ENTERPRISES VIC");
  pdfText(p2,"3. Post-passivation condition",43,725,13,true);
- addPdfImage(p2,"/Im1",afterData,75,505,445,205,ims2);
- pdfText(p2,"Photo 2 - Post-passivation condition.",220,492,8,false);
- pdfText(p2,"4. Final conductivity readings",43,460,13,true);
- pdfText(p2,`Stage 1 final conductivity: ${cond1} µS/cm. Stage 2 final conductivity: ${cond2} µS/cm.`,43,440,9,false);
- addPdfImage(p2,"/Im2",meterData,75,175,445,235,ims2);
- pdfText(p2,`Photo 3 - Conductivity meter reading. Stage 2 final: ${cond2} µS/cm.`,185,162,8,false);
- pdfText(p2,"5. Conclusion",43,125,13,true);
- const conclusion=`Passivation of ${system} was completed in two stages. Total duration was ${formatMinutes(total)}. Stage 1 final conductivity was ${cond1} µS/cm and Stage 2 final conductivity was ${cond2} µS/cm. Work was conducted by ${by}.`;
- const cl=conclusion.match(/.{1,105}(?:\s|$)/g)||[conclusion];
- cl.slice(0,4).forEach((t,i)=>pdfText(p2,t.trim(),43,105-i*13,8.5,false));
+ addPdfImage(p2,"/Im1",afterData,75,515,445,190,ims2);
+ pdfText(p2,"Photo 2 - Post-passivation condition.",220,502,8,false);
+ pdfText(p2,"4. Final conductivity readings",43,468,13,true);
+ pdfText(p2,`Stage 1 final conductivity: ${cond1} µS/cm`,43,448,9,false);
+ pdfText(p2,`Stage 2 final conductivity: ${cond2} µS/cm`,43,432,9,false);
+ addPdfImage(p2,"/Im2",meterData,75,215,445,190,ims2);
+ pdfText(p2,"Photo 3 - Conductivity meter reading.",220,202,8,false);
+ let cy=175;
+ cy=addCommentBlock(p2,"Stage 1 comments",comments1,cy);
+ cy=addCommentBlock(p2,"Stage 2 comments",comments2,cy-4);
  pages.push({stream:p2,images:ims2});
+
+ // PAGE 3 — conclusion and final comments
+ const p3=[],ims3=[];reportPageBase(p3,"PASSIVATION REPORT","CID ENTERPRISES VIC");
+ pdfText(p3,"5. Conclusion",43,725,13,true);
+ const conclusion=`Passivation of ${system} was completed in two stages. Total duration was ${formatMinutes(total)}. Stage 1 final conductivity was ${cond1} µS/cm and Stage 2 final conductivity was ${cond2} µS/cm. Work was conducted by ${by}.`;
+ wrapText(conclusion,105).forEach((t,i)=>pdfText(p3,t,43,700-i*15,9,false));
+ addCommentBlock(p3,"Final report comments",finalComments,610);
+ pdfText(p3,"Report prepared by CID Enterprises Vic",43,470,10,true);
+ pdfText(p3,`Passivation conducted by: ${by}`,43,450,9,false);
+ pdfText(p3,`Date: ${date}`,43,434,9,false);
+ pages.push({stream:p3,images:ims3});
 
  pages.forEach((pg,i)=>{
   pdfLine(pg.stream,43,38,552,38);
@@ -458,10 +499,26 @@ async function createPassivationReport(){
   pdfText(pg.stream,`Page ${i+1} of ${pages.length}`,475,24,7,false);
  });
  const blob=buildPdf(pages),url=URL.createObjectURL(blob);
- $("reportDownload").href=url;$("reportDownload").download="CID-Passivation-Report.pdf";
- $("reportOutput").style.display="block";$("reportOutput").scrollIntoView({behavior:"smooth"});
- $("status").textContent="Passivation report created.";
+ window.__cidReportUrl=url;window.__cidReportBlob=blob;
+ $("reportOutput").style.display="block";
+ $("reportOutput").scrollIntoView({behavior:"smooth"});
+ $("status").textContent="Passivation report created. Use Download PDF Report or Share / Save PDF.";
 }
+
+async function saveOrShareReport(){
+ const blob=window.__cidReportBlob;
+ if(!blob){$("status").textContent="Create the report first.";return;}
+ try{
+  const file=new File([blob],"CID-Passivation-Report.pdf",{type:"application/pdf"});
+  if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+   await navigator.share({files:[file],title:"CID Passivation Report",text:"CID Enterprises Vic Passivation Report"});
+  }else{
+   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="CID-Passivation-Report.pdf";a.style.display="none";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+  }
+ }catch(e){if(e.name!=="AbortError"){console.error(e);$("status").textContent="Could not save/share the PDF. Try Share / Save PDF again.";}}
+}
+$("shareReport").onclick=saveOrShareReport;
+$("reportDownload").onclick=saveOrShareReport;
 
 $("create").onclick=async()=>{
  if($("labelType").value==="passivation"){
