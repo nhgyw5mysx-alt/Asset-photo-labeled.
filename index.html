@@ -53,6 +53,8 @@ input[type=text]{width:100%;padding:13px;border:1px solid #cbd4db;border-radius:
 <div class="field"><label>SERIAL NUMBER</label><input id="serial" type="text"></div>
 <div class="field"><label>ENGINEERING NUMBER</label><input id="engineering" type="text"></div>
 </div>
+</div>
+
 <div id="passivationFields" style="display:none">
 <div class="grid">
 <div class="field full"><label>SYSTEM</label><input id="system" type="text" placeholder="System"></div>
@@ -106,13 +108,14 @@ async function getLogo(){
  await new Promise((ok,no)=>{l.onload=ok;l.onerror=no});window.logo=l;return l;
 }
 
-$("labelType").onchange=()=>{
+function updateLabelType(){
  const p=$("labelType").value==="passivation";
  $("assetFields").style.display=p?"none":"block";
  $("passivationFields").style.display=p?"block":"none";
  $("create").textContent=p?"CREATE PASSIVATION LABEL":"CREATE ASSET LABEL";
  $("outputCard").style.display="none";
-};
+}
+$("labelType").addEventListener("change", updateLabelType);
 
 function durationText(){
  const a=$("startTime").value,b=$("finishTime").value;
@@ -197,7 +200,7 @@ $("create").onclick=async()=>{
   $("status").textContent="Could not create label. Make sure cid-logo-transparent.png is in GitHub.";
  }finally{$("create").disabled=false}
 };
-if($("labelType")) $("labelType").onchange();
+if($("labelType")) updateLabelType();
 </script>
 </body>
 </html>
